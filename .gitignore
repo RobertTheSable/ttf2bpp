@@ -1,0 +1,9 @@
+build*
+
+*.sfc
+*.smc
+
+*.user
+
+*conan*
+!/conanfile.py
