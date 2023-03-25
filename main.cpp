@@ -106,7 +106,6 @@ std::optional<Magick::Image> DrawGlyph(char c)
         pixels.data()
     );
     img1.composite(img2, 0, 0, Magick::AtopCompositeOp);
-//    img1.write(std::string{c} + ".png");
 
     return img1;
 }
@@ -137,7 +136,7 @@ bool DrawString(const std::string& str)
         bgImage.composite(*img, i*GlyphDimention, 0, Magick::AtopCompositeOp);
         ++i;
     }
-    bgImage.alphaChannel(MagickCore::AlphaChannelType::DeactivateAlphaChannel);
+    bgImage.alphaChannel(MagickCore::DeactivateAlphaChannel);
     bgImage.write("test.png");
     return true;
 }
