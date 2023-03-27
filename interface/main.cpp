@@ -1,5 +1,6 @@
 #include <iostream>
 #include "ttf2bpp/ttf2bpp.h"
+#include "noitifer/notifier.h"
 #include <cxxopts.hpp>
 
 struct glyphDataResult {
@@ -28,6 +29,14 @@ int main(int argc, char* argv[])
     std::vector<std::string> blocks{};
     bool useUnicode = false;
     if (argc == 1 || *(argv[1]) == '-') {
+        if (argc ==1 && !notify::isTerminal())
+        {
+            notify::notify("No input provided.\n"
+                           "Check the readme or run from\n"
+                           "the command line to see more options."
+            );
+            return 0;
+        }
         cxxopts::Options programOptions(
                         argv[0],
                     "Program to create a 2BPP font front a Freetype-compatible font.");
@@ -61,18 +70,18 @@ int main(int argc, char* argv[])
                     cxxopts::value<std::string>()
                 )
                 ("output-file","Output File (Optional)",  cxxopts::value<std::string>());
-        programOptions.parse_positional({"font-file", "output-file"});
-        programOptions.positional_help("[font-file] (output-file)");
+        programOptions.parse_positional({"input-file", "output-file"});
+        programOptions.positional_help("[input-file] (output-file)");
 
         try {
             auto result = programOptions.parse(argc, argv);
 
             bool inputProvided = (result.count("unicode-block") || result.count("glyph-file") || result.count("encoding-file"));
-            if (!result.count("font-file") || !inputProvided || result.count("help")) {
+            if (!result.count("input-file") || !inputProvided || result.count("help")) {
                 std::cout << programOptions.help() << '\n';
                 return 0;
             } else {
-                fontpath = result["font-file"].as<std::string>();
+                fontpath = result["input-file"].as<std::string>();
             }
             if (result.count("output-file")) {
                 output = result["output-file"].as<std::string>();
@@ -118,21 +127,21 @@ int main(int argc, char* argv[])
         };
         auto render = config.getRenderer(palette, fontpath);
         if (!(bool)render) {
-            std::cerr << "renderer is invalid.";
+            notify::warn("Renderer is invalid.\n");
             return 2;
         }
         if (!render.imageMode()) {
             auto sorted = config.arrange(getData(useUnicode, glyphFile, std::move(blocks)));
-            auto configData = render.render(std::span<unsigned long>(sorted.begin(), sorted.size()), config.getOutputPath(fontpath, output), config.glyphWidth);
+            auto configData = render.render(std::span(sorted.begin(), sorted.size()), config.getOutputPath(fontpath, output), config.glyphWidth);
 
             config.writeFontData(configData);
         } else {
             render.encodeImage(fontpath, config.getOutputPath(fontpath, output));
         }
         ttf2bpp::writeConfiguration("config.yml", config);
-        std::cout << "Font generated successfully.\n";
+        notify::notify("Font generated successfully.\n");
     } catch(std::runtime_error &e) {
-        std::cerr << "Output failed: " << e.what() << '\n';
+        notify::warn(std::string{"Output failed: "} + e.what() + '\n');
         return 1;
     }
 

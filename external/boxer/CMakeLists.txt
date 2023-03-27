@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.1)
+project(Boxer-Wrapper VERSION 1.0.0 LANGUAGES CXX) 
+
+include(GNUInstallDirs)
+
+add_subdirectory(boxer)
+
+install(TARGETS Boxer
+    EXPORT Boxer-targets
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/boxer/include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+            FILES_MATCHING PATTERN "*.h")

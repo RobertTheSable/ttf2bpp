@@ -69,29 +69,29 @@ TTF_BPP_EXPORT void writeConfiguration(const std::string& path, Configuration co
 
 configuration::configuration()=default;
 
-TTF_BPP_EXPORT std::vector<unsigned long> ttf2bpp::Configuration::arrange(const std::vector<unsigned long> &input) const
+TTF_BPP_EXPORT std::vector<GlyphInput> ttf2bpp::Configuration::arrange(const std::vector<unsigned long> &input) const
 {
     if (input.empty()) {
         throw std::runtime_error("No input glyphs provided.");
     }
-    std::vector<unsigned long> output;
+    std::vector<GlyphInput> output;
     auto source = input.begin();
-    int idx = 0;
+    int idx = glyphStart;
     for (auto& r: reservedGlyphs) {
         while(idx < r.index) {
             if (reservedGlyphs.find(Reserved{.code = *source, .search = true}) == reservedGlyphs.end()) {
-                output.push_back(*source);
+                output.push_back({.label = toUtf8(*source), .utf32code = *source});
                 ++idx;
             }
             if (source+1 != input.end()) {
                 ++source;
             }
         }
-        output.push_back(r.code);
+        output.push_back({.label = r.label, .utf32code = r.code});
         ++idx;
     }
     while (source != input.end()) {
-        output.push_back(*source);
+        output.push_back({.label = toUtf8(*source), .utf32code = *source});
         ++source;
     }
     return output;
@@ -111,12 +111,18 @@ std::string Configuration::getOutputPath(const std::string &in, const std::strin
 
 void Configuration::writeFontData(const std::vector<GlyphData> &data) const
 {
+    using fspath = std::filesystem::path;
+    auto basename = fspath(encFileName).stem().string();
     std::ofstream output(encFileName);
     YAML::Node n;
     for (auto& gl: data) {
-        n[gl.utf8Repr] = gl;
+        auto gl2 = gl;
+        gl2.code += glyphStart;
+        n[gl2.utf8Repr] = gl2;
     }
-    output << n;
+    YAML::Node root;
+    root[basename]["Encoding"] = n;
+    output << root;
     output.close();
 }
 

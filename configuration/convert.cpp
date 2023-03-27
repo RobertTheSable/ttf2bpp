@@ -16,7 +16,11 @@ namespace YAML {
                 throw YAML::Exception(node.Mark(), "Glyphs must correspond to a single UTF32 code point.");
             }
         }
-        rhs.index = node["code"].as<int>();
+        if (auto val= node["code"].as<int>(); val < 0) {
+            throw YAML::Exception(node.Mark(), "Reserved glyphs must have a code value of at least 0.");
+        } else {
+            rhs.index = val;
+        }
         return true;
     }
 
@@ -71,6 +75,7 @@ namespace YAML {
     constexpr const char* PT_Size = "BorderPointSize";
     constexpr const char* GlyphWidth = "GlyphWidth";
     constexpr const char* RenderWidth = "RenderWidth";
+    constexpr const char* GlyphIndexStart = "GlyphIndexStart";
     bool convert<ttf2bpp::Configuration>::decode(const Node& node, ttf2bpp::Configuration& rhs)
     {
         if (auto rGlyphNode = node[Reserved]; rGlyphNode.IsDefined() && rGlyphNode.IsMap()) {
@@ -151,6 +156,17 @@ namespace YAML {
             rhs.renderWidth = renderSize.as<int>();
         } else {
             rhs.renderWidth = rhs.glyphWidth;
+        }
+
+        if (auto gls= node[GlyphIndexStart]; gls.IsDefined()) {
+            if (!gls.IsScalar()) {
+                return false;
+            }
+            if (auto val = gls.as<int>(); val < 0) {
+                return false;
+            } else {
+                rhs.glyphStart = val;
+            }
         }
         return true;
     }

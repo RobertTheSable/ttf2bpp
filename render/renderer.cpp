@@ -252,7 +252,7 @@ Renderer::operator bool() const
     return _valid || _impl->inPictureMode();
 }
 
-std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const std::string& filename, int glyphWidth)
+std::vector<GlyphData> Renderer::render(std::span<GlyphInput> glyphs, const std::string& filename, int glyphWidth)
 {
     using fspath = std::filesystem::path;
     if (!_valid) {
@@ -271,9 +271,14 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
     }
 
     std::vector<GlyphData> gData;
-    auto append = [&gData] (unsigned long utfEnc, int width, int code) -> int {
+    auto append = [&gData] (GlyphInput in, int width, int code) -> int {
         if (width != 0) {
-            gData.push_back(getGlyphData(utfEnc, width, code + 1));
+            if (in.label == "") {
+                gData.push_back(getGlyphData(in.utf32code, width, code));
+            } else {
+                gData.push_back(GlyphData{.utf8Repr = in.label, .code = code, .length = width});
+            }
+
             return code+1;
         }
         return code;
@@ -290,7 +295,7 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
         auto bgImage = buildPng(BackgroundColor, glyphWidth*rowSize, GlyphDimention*rows);
         for (auto c : glyphs) {
             int x = i%rowSize, y = i/rowSize;
-            auto result = _impl->DrawGlyph(c, glyphWidth);
+            auto result = _impl->DrawGlyph(c.utf32code, glyphWidth);
             composite(bgImage, result.img, x*glyphWidth, y*GlyphDimention);
             i = append(c, result.width, i);
         }
@@ -303,7 +308,7 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
         for (auto c : glyphs) {
             auto bgImage = buildPng(BackgroundColor, glyphWidth, GlyphDimention);
 
-            auto result =  _impl->DrawGlyph(c, glyphWidth);
+            auto result =  _impl->DrawGlyph(c.utf32code, glyphWidth);
             composite(bgImage, result.img, 0, 0);
             row.push_back(bgImage);
             if (row.size() == 8) {

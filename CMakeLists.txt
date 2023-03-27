@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(ttf-2-bpp)
 
+option(TTF_USE_BOXER "Use the boxer library for notification windows." Off)
 
 set(TTF2BPP_RENDER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/render")
 set(TTF2BPP_CONFIG_PATH "${CMAKE_CURRENT_SOURCE_DIR}/configuration")
@@ -48,12 +49,20 @@ target_include_directories(ttf2bpp-lib PUBLIC
 
 check_pngpp(ttf2bpp-lib)
 
-add_executable(ttf-test "${CMAKE_CURRENT_SOURCE_DIR}/interface/main.cpp")
+add_executable(ttf-2-bpp
+    "${CMAKE_CURRENT_SOURCE_DIR}/interface/main.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/interface/noitifer/notifier.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/interface/noitifer/notifier.cpp"
+)
 
-find_cxxopts_includes(ttf-test)
 
-target_link_libraries(ttf-test ttf2bpp-lib ${YAML})
+find_cxxopts_includes(ttf-2-bpp)
 
-target_include_directories(ttf-test PUBLIC ${TTF2BPP_INCLUDE_PATH})
+ttf_check_boxer(ttf-2-bpp)
+
+target_link_libraries(ttf-2-bpp ttf2bpp-lib ${YAML} ${boxer_LIBRARIES})
+
+target_include_directories(ttf-2-bpp PUBLIC ${TTF2BPP_INCLUDE_PATH})
+
 
 setup_unicode_db()

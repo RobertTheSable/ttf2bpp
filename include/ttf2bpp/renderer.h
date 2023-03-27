@@ -20,6 +20,11 @@ struct TTF_BPP_EXPORT GlyphData {
     int length;
 };
 
+struct TTF_BPP_EXPORT GlyphInput {
+    std::string label;
+    unsigned long utf32code;
+};
+
 constexpr const unsigned int BaseGlyphDimention = 8;
 constexpr const unsigned int GlyphDimention = 16;
 
@@ -41,7 +46,7 @@ public:
     Renderer(ColorIndexes indexes);
     ~Renderer();
     explicit operator bool() const;
-    std::vector<GlyphData> render(std::span<unsigned long> glyphs, const std::string& filename, int glyphWidth);
+    std::vector<GlyphData> render(std::span<GlyphInput> glyphs, const std::string& filename, int glyphWidth);
     void encodeImage(const std::string& inFile, const std::string outfile) const;
     bool imageMode() const;
 };

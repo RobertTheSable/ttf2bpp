@@ -28,6 +28,7 @@ struct TTF_BPP_EXPORT Configuration {
     enum class Colors {Background, Border, Text, Unused};
     enum class EncType {YAML};
     int maxCode = 0;
+    int glyphStart = 1;
     int baseline = 13, alphaThreshold = 112, borderPointSize = 40;
     int glyphWidth = GlyphDimention, renderWidth = GlyphDimention;
     EncType outEncoding = EncType::YAML;
@@ -38,7 +39,7 @@ struct TTF_BPP_EXPORT Configuration {
     std::array<Colors, 4> ordering = {Colors::Unused, Colors::Border, Colors::Text, Colors::Background};
     // bool rightToLeft;
     Configuration& updateOutputParams(const std::string& fontFile, const std::string& encFile);
-    std::vector<unsigned long> arrange(const std::vector<unsigned long>& input) const;
+    std::vector<GlyphInput> arrange(const std::vector<unsigned long>& input) const;
     std::string getOutputPath(const std::string& in, const std::string& out) const;
     void writeFontData(const std::vector<GlyphData> &data) const;
     Renderer getRenderer(ColorIndexes paletter, const std::string& file) const;
