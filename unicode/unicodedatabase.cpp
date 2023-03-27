@@ -1,168 +1,138 @@
 #include "ttf2bpp/unicodedatabase.h"
-#include <libxml/SAX.h>
-#include <libxml/parser.h>
+#include <expat.h>
 #include <cstring>
 #include <algorithm>
 #include <optional>
 #include <stack>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <set>
 
 namespace ttf2bpp {
 
 namespace {
-bool inGroup = false;
-std::stack<std::string> tags;
-std::optional<UnicodeDatabase> ds = std::nullopt;
-std::string currentCategory;
-std::string currentBlock;
+struct state {
+    bool inGroup = false;
+    std::stack<std::string> tags;
+    UnicodeDatabase ds;
+    std::string currentCategory;
+    std::string currentBlock;
+    std::set<std::string> blocks;
+};
 
-void OnStartElementNs(
-    void *ctx,
-    const xmlChar *localname,
-    const xmlChar *prefix,
-    const xmlChar *URI,
-    int nb_namespaces,
-    const xmlChar **namespaces,
-    int nb_attributes,
-    int nb_defaulted,
-    const xmlChar **attributes
-) {
-    if (nb_attributes == 0) {
+
+void XMLCALL
+startElement(void *userData, const XML_Char *name, const XML_Char **atts)
+{
+    auto m_state = reinterpret_cast<state*>(userData);
+    std::string tagName{name};
+    m_state->tags.push(tagName);
+    if (*atts == nullptr) {
         return;
     }
-    std::string tagName{(char*)localname};
     if (tagName == "group") {
         std::string category, block;
-        auto attrPtr = attributes;
-        int left = nb_attributes;
-        bool done = false;
-        while (left >0) {
-            if (*attrPtr != nullptr) {
-                std::string name{(char*)*attrPtr};
-                if (name.find_first_of("\"") == std::string::npos) {
-                    --left;
-                }
-                if (name == "blk") {
-                    do {
-                        ++attrPtr;
-                    } while (*attrPtr == nullptr);
-                    block = std::string((char*)*attrPtr, (char*)*(attrPtr+1));
-                } else if (name == "gc") {
-                    do {
-                        ++attrPtr;
-                    } while (*attrPtr == nullptr);
-                    category = std::string((char*)*attrPtr, (char*)*(attrPtr+1));
-                }
+        auto attrPtr = atts;
+        while (*attrPtr != nullptr) {
+            std::string name{(char*)*attrPtr};
+            ++attrPtr;
+            std::string value{(char*)*attrPtr};
+            if (name == "blk") {
+                block = value;
+            } else if (name == "gc") {
+                category = value;
             }
             if (category != "" && block != "") {
                 break;
             }
             ++attrPtr;
         }
-        if (left <= 0) {
-            // error
-        }
-        currentBlock = block;
+        m_state->currentBlock = block;
         auto groupCategory = category.front();
-        if (ds->block == block && (groupCategory == 'L' || groupCategory == 'N' || groupCategory == 'M')) {
-            inGroup = true;
-            currentCategory = groupCategory;
+        if (m_state->blocks.contains(block) && (groupCategory == 'L' || groupCategory == 'N' || groupCategory == 'M')) {
+            m_state->inGroup = true;
+            m_state->currentCategory = groupCategory;
         }
     } else if (
-        tagName == "char" &&
-        !tags.empty() &&
-        tags.top() == "group" &&
-        currentBlock == ds->block
+        tagName == "char"
     ) {
-        std::string code = "", category = currentCategory;
-        auto attrPtr = attributes;
-        int left = nb_attributes;
-        bool done = false;
-        while (left >0) {
-            if (*attrPtr != nullptr) {
+        if (!m_state->tags.empty() &&
+            m_state->inGroup
+        ) {
+            std::string code = "", category = m_state->currentCategory;
+            auto attrPtr = atts;
+            while (*attrPtr != nullptr) {
                 std::string name{(char*)*attrPtr};
-                if (name.find_first_of("\"") == std::string::npos) {
-                    --left;
-                }
+                ++attrPtr;
+                std::string value{(char*)*attrPtr};
                 if (name == "cp") {
-                    do {
-                        ++attrPtr;
-                    } while (*attrPtr == nullptr);
-                    code = std::string((char*)*attrPtr, (char*)*(attrPtr+1));
+                    code = value;
                 } else if (name == "gc") {
-                    do {
-                        ++attrPtr;
-                    } while (*attrPtr == nullptr);
-                    category = std::string((char*)*attrPtr, (char*)*(attrPtr+1));
+                    category = value;
                 }
+                ++attrPtr;
             }
-            ++attrPtr;
-        }
-        auto groupCategory = category.front();
-        if (code != "" && (groupCategory == 'L' || groupCategory == 'N' || groupCategory == 'P' || category == "Zs")) {
-            auto cp = std::stoul(code, nullptr, 16);
-            ds->codes.push_back(cp);
+            auto groupCategory = category.front();
+            if (code != "" && (groupCategory == 'L' || groupCategory == 'N' || groupCategory == 'P' || category == "Zs")) {
+                auto cp = std::stoul(code, nullptr, 16);
+                m_state->ds.codes.push_back(cp);
+            }
         }
     }
-    tags.push(tagName);
+    //userData = reinterpret_cast<void*>(m_state);
 }
 
-void OnEndElementNs(
-    void* ctx,
-    const xmlChar* localname,
-    const xmlChar* prefix,
-    const xmlChar* URI
-) {
-//    auto testDb = *ds;
-    std::string currentTag = "";
-    if (!tags.empty()) {
-        currentTag = tags.top();
-        tags.pop();
+void XMLCALL
+endElement(void *userData, const XML_Char *name) {
+    auto m_state = reinterpret_cast<state*>(userData);
+    std::string tagName{name};
+
+    if (!m_state->tags.empty() && m_state->tags.top() == tagName) {
+        m_state->tags.pop();
     }
-    if (!tags.empty() && currentTag != "group") {
-//        bool ig = inGroup;
-//        std::string top = tags.top();
-        if ((tags.top() == "group" || currentTag == "name-alias") && inGroup) {
-            inGroup &= true;
-        } else {
-            inGroup = false;
-        }
-    } else {
-        inGroup = false;
+
+    if (tagName == "group") {
+        m_state->inGroup = false;
     }
-}
-
-void OnCharacters(void *ctx, const xmlChar *ch, int len) {
-    int test = 1;
-}
-
-void attributeDeclSAXFunc (void * ctx,
-    const xmlChar * elem,
-    const xmlChar * fullname,
-    int type,
-    int def,
-    const xmlChar * defaultValue,
-    xmlEnumerationPtr tree) {
-
 }
 
 } // anonymous
 
 
-UnicodeDatabase UnicodeDatabase::getUnicodeDatabase(const std::string &file, const std::string &section, const std::string &category)
+UnicodeDatabase UnicodeDatabase::getUnicodeDatabase(const std::string &file, std::vector<std::string>&& blocks)
 {
-    if (ds) {
-        return *ds;
+    std::ifstream input(file);
+    if (!input) {
+        throw std::runtime_error("Unicode database file not found.");
     }
-    ds = UnicodeDatabase{section, category};
-    xmlSAXHandler SAXHander;
-    memset (&SAXHander, 0, sizeof (SAXHander));
-    SAXHander.initialized = XML_SAX2_MAGIC;
-    SAXHander.startElementNs = &OnStartElementNs;
-    SAXHander.endElementNs = &OnEndElementNs;
-    SAXHander.characters = &OnCharacters;
-    xmlFreeDoc(xmlSAXParseFile(&SAXHander, file.c_str(), 0));
-    xmlCleanupParser();
-    return *ds;
+    auto m_state = std::make_unique<state>();
+    for (auto block: blocks) {
+        m_state->blocks.insert(block);
+    }
+
+    XML_Parser parser = XML_ParserCreate("utf-8");
+    XML_SetElementHandler(parser, startElement, endElement);
+    int bytes_read =1;
+    XML_SetUserData(parser, reinterpret_cast<void*>(m_state.get()));
+    while (!input.eof()) {
+        std::string line;
+        if (!std::getline(input, line)) {
+            throw std::runtime_error(std::string{"Couldn't read database file after."} + line);
+        }
+        line += '\n';
+        auto buffer = XML_GetBuffer(parser, line.length());
+        std::copy(line.begin(), line.end(), (char*)buffer);
+        bytes_read = line.length();
+        if (auto status = XML_ParseBuffer(parser, bytes_read, bytes_read == 0); !status) {
+            auto code = XML_GetErrorCode(parser);
+            std::cerr << "Got status: " << (int)code << '\n';
+            throw std::runtime_error("Error parsing the database file.");
+        }
+    }
+
+    XML_ParserFree(parser);
+    return m_state->ds;
 }
 
 } // namespace ttf2bpp

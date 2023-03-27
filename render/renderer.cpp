@@ -4,58 +4,77 @@
 #include <span>
 #include <vector>
 #include <fstream>
+#include <filesystem>
 
-#include <Magick++.h>
+//#include <Magick++.h>
 #include <freetype/freetype.h>
+#include "pnghelper.h"
+#include <png++/png.hpp>
 
 #include FT_STROKER_H
 
 namespace ttf2bpp {
 
-constexpr const unsigned int QuantumMax = (1 << MAGICKCORE_QUANTUM_DEPTH) - 1;
-constexpr const unsigned int QuantumAlphaTransparent = (MAGICKCORE_HDRI_ENABLE == 0) ? QuantumMax : 0;
-constexpr const unsigned int QuantumAlphaOpaque = QuantumMax - QuantumAlphaTransparent;
+//constexpr const unsigned int QuantumMax = (1 << MAGICKCORE_QUANTUM_DEPTH) - 1;
+//constexpr const unsigned int QuantumAlphaTransparent = (MAGICKCORE_HDRI_ENABLE == 0) ? QuantumMax : 0;
+//constexpr const unsigned int QuantumAlphaOpaque = QuantumMax - QuantumAlphaTransparent;
 constexpr const unsigned int GlyphDimention = 16;
 
 namespace  {
-    struct libUnload {
-        void operator()(FT_Library lib) {
-            FT_Done_FreeType(lib);
-        };
-    };
-
-    bool magickLoaded = false;
-    std::shared_ptr<FT_LibraryRec_> library;
-    auto loadLibrary() {
-        if (!library) {
-            FT_Library lib;
-            if (FT_Init_FreeType(&lib)) {
-                throw std::runtime_error("Freetype library not loaded.");
-            }
-            library = std::shared_ptr<FT_LibraryRec_>(lib, libUnload{});
-        }
-        return library;
-    }
-    auto BackgroundColor = Magick::Color(QuantumMax, 0, QuantumMax, QuantumAlphaOpaque);
-    auto TextColor = Magick::Color(QuantumMax, QuantumMax, QuantumMax, QuantumAlphaOpaque);
-    auto BorderColor = Magick::Color(0, 0, 0, QuantumAlphaOpaque);
+//    bool magickLoaded = false;
+    auto BackgroundColor = png::rgba_pixel{0xFF, 0, 0xFF, 0xFF};
+    auto TextColor = png::rgba_pixel{0xFF, 0xFF, 0xFF, 0xFF};
+    auto BorderColor = png::rgba_pixel{0, 0, 0, 0xFF};
 }
 
 struct RenderResult {
-    Magick::Image img;
+    png::image<png::rgba_pixel> img;
     int width;
 };
 
-struct Renderer::pImpl {
+class Renderer::pImpl {
+    bool strokerLoaded = false;
+    bool faceLoaded = false;
+public:
     int         baseline = 13;
     int         alphaThreshold = 112;
     int         borderPointSize = 40;
+    std::string facePath;
+    std::string workpath;
     FT_Face     face;
     FT_Stroker  stroker;
     ColorIndexes indexes;
+    FT_Library lib;
+    pImpl(int b, int a, int bd, const std::string& fPath): baseline{b}, alphaThreshold{a}, borderPointSize{bd}, facePath{fPath} {
+        if (FT_Init_FreeType(&lib)) {
+            throw std::runtime_error("Freetype library not loaded.");
+        }
+        if (FT_New_Face(
+            lib,
+            facePath.c_str(),
+            0,
+            &face
+        )) {
+            throw std::runtime_error("Face not created.");
+        }
+        faceLoaded = true;
+        if (FT_Set_Pixel_Sizes(face, 0, GlyphDimention)) {
+            throw std::runtime_error("Face size not set.");
+        }
+        if (FT_Stroker_New(lib, &stroker)) {
+            throw std::runtime_error("Stroker not loaded.");
+        }
+        FT_Stroker_Set(stroker, borderPointSize, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+        strokerLoaded = true;
+    }
     ~pImpl() {
-        FT_Stroker_Done(stroker);
-        FT_Done_Face(face);
+        if (strokerLoaded) {
+            FT_Stroker_Done(stroker);
+        }
+        if (faceLoaded) {
+            FT_Done_Face(face);
+        }
+        FT_Done_FreeType(lib);
     }
     bool RenderGlyphSection(int top, int left, FT_Bitmap bitmap, std::span<unsigned char> pixels, unsigned char red, unsigned char green, unsigned char blue, bool keepOpacity) {
         for (int y = 0; y < bitmap.rows; ++y) {
@@ -109,13 +128,7 @@ struct Renderer::pImpl {
         RenderGlyphSection(baseline - top, 0, bmpGlyph->bitmap, std::span(pixels.begin(), pixels.end()), 0, 0, 0, false);
         FT_Done_Glyph(glyph);
 
-        auto img1 = Magick::Image(
-            GlyphDimention,
-            GlyphDimention,
-            "RGBA",
-            Magick::StorageType::CharPixel,
-            pixels.data()
-        );
+        png::image<png::rgba_pixel> img1 = buildPng({pixels.begin(), pixels.size()}, GlyphDimention, GlyphDimention);
 
         for(auto &px: pixels) {
             px = 0;
@@ -134,14 +147,9 @@ struct Renderer::pImpl {
         RenderGlyphSection(baseline - top, glyphLeft-borderLeft, bmpGlyph->bitmap, std::span(pixels.begin(), pixels.end()), 255, 255, 255, true);
         FT_Done_Glyph(glyph);
 
-        auto img2 = Magick::Image(
-            GlyphDimention,
-            GlyphDimention,
-            "RGBA",
-            Magick::StorageType::CharPixel,
-            pixels.data()
-        );
-        img1.composite(img2, 0, 0, Magick::AtopCompositeOp);
+        auto img2 = buildPng({pixels.begin(), pixels.size()}, GlyphDimention, GlyphDimention);
+
+        composite(img1, img2, 0, 0);
 
         return RenderResult{
             .img = img1,
@@ -150,25 +158,27 @@ struct Renderer::pImpl {
     }
 
 
-    auto outputBppRow(Magick::Image bgImage, int y)
+    auto outputBppRow(png::image<png::rgba_pixel> bgImage, int y)
     {
         const int quarterSize = GlyphDimention/2;
         std::vector<unsigned char> data(16*2, 0);
         auto outPtr = data.begin();
         for (int x = 0; x < 2 ; ++x) {
-            auto pixelPtr = bgImage.getConstPixels(x*quarterSize, y*quarterSize, quarterSize, quarterSize);
+            auto quarterimage = buildPng(bgImage, x*quarterSize, y*quarterSize, quarterSize, quarterSize);
+//            auto pixelPtr = bgImage.getConstPixels(x*quarterSize, y*quarterSize, quarterSize, quarterSize);
+
             for (int qY = 0; qY < quarterSize; ++qY) {
                 for (int qX = 0; qX < quarterSize; ++qX) {
-                    auto packet = *pixelPtr++;
-                    auto pxColor = Magick::Color(packet.red, packet.green, packet.blue, QuantumAlphaOpaque);
+                    auto packet = quarterimage.get_pixel(qX, qY);
+//                    auto pxColor = Magick::Color(packet.red, packet.green, packet.blue, QuantumAlphaOpaque);
                     unsigned char bitmask1 = 0, bitmask2 = 0;
-                    if (pxColor == BackgroundColor) {
+                    if (equals(packet, BackgroundColor)) {
                         bitmask1 = indexes.background & 1;
                         bitmask2 = (indexes.background & 2) >> 1;
-                    } else if (pxColor == TextColor) {
+                    } else if (equals(packet, TextColor)) {
                         bitmask1 = indexes.text & 1;
                         bitmask2 = (indexes.text & 2) >> 1;
-                    } else if (pxColor == BorderColor) {
+                    } else if (equals(packet, BorderColor)) {
                         bitmask1 = indexes.border1 & 1;
                         bitmask2 = (indexes.border1 & 2) >> 1;
                     } else {
@@ -184,7 +194,7 @@ struct Renderer::pImpl {
         return data;
     }
 
-    void appendBppRowsData(std::vector<Magick::Image> row, std::vector<unsigned char>& data)
+    void appendBppRowsData(std::vector<png::image<png::rgba_pixel>> row, std::vector<unsigned char>& data)
     {
         for (auto y = 0; y < 2; ++y) {
             for (auto& rowImg: row) {
@@ -200,30 +210,18 @@ Renderer::Renderer(
     int baseline,
     int alphaThreshold,
     int borderPointSize,
-    ColorIndexes indexes,
+    ColorIndexes idxs,
     const std::string& workPath,
     const std::string& facePath
 ) {
+    if (idxs.background == idxs.border1 || idxs.background == idxs.text || idxs.border1 == idxs.text) {
+        throw std::runtime_error("Color ordering cannot contain duplicates.");
+    }
     _valid = false;
-    _impl = std::make_unique<pImpl>(baseline, alphaThreshold, borderPointSize);
-    _impl->indexes = indexes;
-    auto library = loadLibrary();
-
-    if (!magickLoaded) {
-        Magick::InitializeMagick(workPath.c_str());
-        magickLoaded = true;
-    }
-
-    if (FT_New_Face(
-        library.get(),
-        facePath.c_str(),
-        0,
-        &_impl->face
-    )) {
-        throw std::runtime_error("Face not created.");
-    }
-    FT_Stroker_New(library.get(), &_impl->stroker);
-    FT_Stroker_Set(_impl->stroker, _impl->borderPointSize, FT_STROKER_LINECAP_ROUND, FT_STROKER_LINEJOIN_ROUND, 0);
+    _inFileName = facePath;
+    _impl = std::make_unique<pImpl>(baseline, alphaThreshold, borderPointSize, facePath);
+    _impl->indexes = idxs;
+    _impl->workpath = workPath;
     _valid = true;
 }
 
@@ -234,62 +232,72 @@ Renderer::operator bool() const
     return _valid;
 }
 
-std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const std::string& filename, bool image)
+std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const std::string& filename)
 {
-    if (FT_Set_Pixel_Sizes(_impl->face, 0, GlyphDimention)) {
-        throw std::runtime_error("Face size not set.");
+    using fspath = std::filesystem::path;
+    if (!_valid) {
+        return {};
     }
-
-    std::vector<GlyphData> gData;
-    if (image) {
-        Magick::Image bgImage(
-            Magick::Geometry(GlyphDimention*glyphs.size(), GlyphDimention),
-            Magick::Color(QuantumMax, 0, QuantumMax, QuantumAlphaOpaque)
-        );
-
-        int i = 0;
-        for (auto c : glyphs) {
-            auto result = _impl->DrawGlyph(c);
-            bgImage.composite(result.img, i*GlyphDimention, 0, Magick::AtopCompositeOp);
-            ++i;
-            gData.push_back(getGlyphData(c, result.width, i));
-        }
-        bgImage.alphaChannel(MagickCore::DeactivateAlphaChannel);
-
-        bgImage.write(filename);
+    bool image = false;
+    std::string outfilepath = filename;
+    if (filename == "") {
+        outfilepath = fspath(_inFileName).replace_extension(fspath(".bin")).string();
     } else {
-        std::vector<unsigned char> data;
-        std::vector<Magick::Image> row;
-        int i = 0;
-        for (auto c : glyphs) {
-            Magick::Image bgImage(
-                Magick::Geometry(GlyphDimention, GlyphDimention),
-                Magick::Color(QuantumMax, 0, QuantumMax, QuantumAlphaOpaque)
-            );
-
-            auto result =  _impl->DrawGlyph(c);
-            bgImage.composite(result.img, 0, 0, Magick::AtopCompositeOp);
-            row.push_back(bgImage);
-            if (row.size() == 8) {
-                _impl->appendBppRowsData(row, data);
-                row.clear();
-            }
-            gData.push_back(getGlyphData(c, result.width, i));
-            ++i;
+        if (auto ext = fspath(filename).extension().string(); ext == ".png" ) {
+            image = true;
+        } else if (ext == ".jpeg" || ext == ".jpg" || ext == ".bmp") {
+            throw std::runtime_error("Only PNG image output is supported.");
         }
-        if (!row.empty()) {
-            while(row.size() != 8) {
-                row.push_back(Magick::Image("16x16", BackgroundColor));
-            }
-            _impl->appendBppRowsData(row, data);
-        }
-        std::ofstream output(filename, std::ios_base::binary);
-        output.write((char*)data.data(), data.size());
-        output.flush();
-        output.close();
     }
+//    try {
+//        Magick::InitializeMagick(_impl->workpath.c_str());
 
-    return gData;
+        std::vector<GlyphData> gData;
+        if (image) {
+            auto bgImage = buildPng(BackgroundColor, GlyphDimention*glyphs.size(), GlyphDimention);
+            int i = 0;
+            for (auto c : glyphs) {
+                auto result = _impl->DrawGlyph(c);
+                composite(bgImage, result.img, i*GlyphDimention, 0);
+//                bgImage.composite(result.img, i*GlyphDimention, 0, Magick::AtopCompositeOp);
+                ++i;
+                gData.push_back(getGlyphData(c, result.width, i));
+            }
+//            bgImage.alphaChannel(MagickCore::DeactivateAlphaChannel);
+
+            bgImage.write(outfilepath);
+        } else {
+            std::vector<unsigned char> data;
+            std::vector<png::image<png::rgba_pixel>> row;
+            int i = 0;
+            for (auto c : glyphs) {
+                auto bgImage = buildPng(BackgroundColor, GlyphDimention, GlyphDimention);
+
+                auto result =  _impl->DrawGlyph(c);
+                composite(bgImage, result.img, 0, 0);
+                row.push_back(bgImage);
+                if (row.size() == 8) {
+                    _impl->appendBppRowsData(row, data);
+                    row.clear();
+                }
+                gData.push_back(getGlyphData(c, result.width, i));
+                ++i;
+            }
+            if (!row.empty()) {
+                while(row.size() != 8) {
+                    row.push_back(buildPng(BackgroundColor, GlyphDimention, GlyphDimention));
+                }
+                _impl->appendBppRowsData(row, data);
+            }
+            std::ofstream output(filename, std::ios_base::binary);
+            output.write((char*)data.data(), data.size());
+            output.flush();
+            output.close();
+        }
+        return gData;
+//    } catch (Magick::Exception &e) {
+//        throw std::runtime_error(e.what());
+//    }
 }
 
 } // namespace ttf2bpp
