@@ -1,29 +1,6 @@
 #include "config_impl.h"
 
 #include <yaml-cpp/yaml.h>
-#include <boost/locale.hpp>
-#include <boost/locale/localization_backend.hpp>
-
-namespace ttf2bpp {
-    std::optional<unsigned long> fromUtf8(const std::string& utf8)
-    {
-        auto locale = boost::locale::generator().generate("en_US.utf-8");
-        auto normalized = boost::locale::normalize(
-            boost::locale::normalize(utf8, boost::locale::norm_nfd, locale),
-            boost::locale::norm_nfc,
-            locale
-        );
-        auto utf32Str = boost::locale::conv::utf_to_utf<char32_t>(normalized);
-        if (utf32Str.length() != 1) {
-            return std::nullopt;
-        }
-        return (unsigned long)utf32Str.front();
-    }
-    std::string toUtf8(unsigned long utf32)
-    {
-        return boost::locale::conv::utf_to_utf<char>(std::basic_string<char32_t>{(char32_t)utf32});
-    }
-}
 
 namespace YAML {
     bool convert<ttf2bpp::Reserved>::decode(const Node& node, ttf2bpp::Reserved& rhs)

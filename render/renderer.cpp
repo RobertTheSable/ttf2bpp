@@ -249,55 +249,53 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
             throw std::runtime_error("Only PNG image output is supported.");
         }
     }
-//    try {
-//        Magick::InitializeMagick(_impl->workpath.c_str());
 
-        std::vector<GlyphData> gData;
-        if (image) {
-            auto bgImage = buildPng(BackgroundColor, GlyphDimention*glyphs.size(), GlyphDimention);
-            int i = 0;
-            for (auto c : glyphs) {
-                auto result = _impl->DrawGlyph(c);
-                composite(bgImage, result.img, i*GlyphDimention, 0);
-//                bgImage.composite(result.img, i*GlyphDimention, 0, Magick::AtopCompositeOp);
-                ++i;
-                gData.push_back(getGlyphData(c, result.width, i));
-            }
-//            bgImage.alphaChannel(MagickCore::DeactivateAlphaChannel);
-
-            bgImage.write(outfilepath);
-        } else {
-            std::vector<unsigned char> data;
-            std::vector<png::image<png::rgba_pixel>> row;
-            int i = 0;
-            for (auto c : glyphs) {
-                auto bgImage = buildPng(BackgroundColor, GlyphDimention, GlyphDimention);
-
-                auto result =  _impl->DrawGlyph(c);
-                composite(bgImage, result.img, 0, 0);
-                row.push_back(bgImage);
-                if (row.size() == 8) {
-                    _impl->appendBppRowsData(row, data);
-                    row.clear();
-                }
-                gData.push_back(getGlyphData(c, result.width, i));
-                ++i;
-            }
-            if (!row.empty()) {
-                while(row.size() != 8) {
-                    row.push_back(buildPng(BackgroundColor, GlyphDimention, GlyphDimention));
-                }
-                _impl->appendBppRowsData(row, data);
-            }
-            std::ofstream output(filename, std::ios_base::binary);
-            output.write((char*)data.data(), data.size());
-            output.flush();
-            output.close();
+    std::vector<GlyphData> gData;
+    if (image) {
+        int i = 0;
+        int rows = 0;
+        for (int count = glyphs.size(); count > 0; count -= 8) {
+            ++rows;
         }
-        return gData;
-//    } catch (Magick::Exception &e) {
-//        throw std::runtime_error(e.what());
-//    }
+        auto bgImage = buildPng(BackgroundColor, GlyphDimention*8, GlyphDimention*rows);
+        for (auto c : glyphs) {
+            int x = i%8, y = i/8;
+            auto result = _impl->DrawGlyph(c);
+            composite(bgImage, result.img, x*GlyphDimention, y*GlyphDimention);
+            ++i;
+            gData.push_back(getGlyphData(c, result.width, i+1));
+        }
+
+        bgImage.write(outfilepath);
+    } else {
+        std::vector<unsigned char> data;
+        std::vector<png::image<png::rgba_pixel>> row;
+        int i = 0;
+        for (auto c : glyphs) {
+            auto bgImage = buildPng(BackgroundColor, GlyphDimention, GlyphDimention);
+
+            auto result =  _impl->DrawGlyph(c);
+            composite(bgImage, result.img, 0, 0);
+            row.push_back(bgImage);
+            if (row.size() == 8) {
+                _impl->appendBppRowsData(row, data);
+                row.clear();
+            }
+            gData.push_back(getGlyphData(c, result.width, i+1));
+            ++i;
+        }
+        if (!row.empty()) {
+            while(row.size() != 8) {
+                row.push_back(buildPng(BackgroundColor, GlyphDimention, GlyphDimention));
+            }
+            _impl->appendBppRowsData(row, data);
+        }
+        std::ofstream output(filename, std::ios_base::binary);
+        output.write((char*)data.data(), data.size());
+        output.flush();
+        output.close();
+    }
+    return gData;
 }
 
 } // namespace ttf2bpp

@@ -31,6 +31,10 @@ namespace YAML {
 
 namespace ttf2bpp {
 
+std::optional<unsigned long> fromUtf8(const std::string& utf8);
+std::string toUtf8(unsigned long utf32);
+
+
 class configuration
 {
 public:

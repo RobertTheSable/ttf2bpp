@@ -8,10 +8,15 @@
 #include <iostream>
 #include <memory>
 #include <set>
+#include <algorithm>
 
 namespace ttf2bpp {
 
 namespace {
+struct comparator {
+
+};
+
 struct state {
     bool inGroup = false;
     std::stack<std::string> tags;
@@ -48,7 +53,7 @@ startElement(void *userData, const XML_Char *name, const XML_Char **atts)
             }
             ++attrPtr;
         }
-        m_state->currentBlock = block;
+
         auto groupCategory = category.front();
         if (m_state->blocks.contains(block) && (groupCategory == 'L' || groupCategory == 'N' || groupCategory == 'M')) {
             m_state->inGroup = true;

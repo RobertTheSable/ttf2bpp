@@ -83,6 +83,9 @@ configuration::configuration()=default;
 
 TTF_BPP_EXPORT std::vector<unsigned long> ttf2bpp::Configuration::arrange(const std::vector<unsigned long> &input) const
 {
+    if (input.empty()) {
+        throw std::runtime_error("No input glyphs provided.");
+    }
     std::vector<unsigned long> output;
     auto source = input.begin();
     int idx = 0;

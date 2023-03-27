@@ -8,7 +8,7 @@ class Ttf2BppConan(ConanFile):
     settings = "os", "compiler", "build_type", "arch"
     requires = "yaml-cpp/0.6.3", "cxxopts/2.2.0"
     options = {"use_system_png": [True, False], "use_system_xml": [True, False], "use_system_boost": [True, False], "use_system_icu": [True, False], "use_system_freetype": [True, False]}
-    default_options = {"use_system_png": True, "use_system_xml": True, "use_system_boost": True, "use_system_icu": True, "use_system_freetype": True}
+    default_options = {"use_system_png": False, "use_system_xml": False, "use_system_boost": False, "use_system_icu": False, "use_system_freetype": False}
     
     def layout(self):    
         cmake_layout(self)
@@ -16,6 +16,7 @@ class Ttf2BppConan(ConanFile):
     def requirements(self):
         if not self.options.use_system_png:
             self.requires("pngpp/0.2.10")
+            self.requires("libpng/1.6.39")
         if not self.options.use_system_xml:
             self.requires("expat/2.5.0")
         if not self.options.use_system_boost:

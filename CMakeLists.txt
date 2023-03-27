@@ -20,9 +20,11 @@ file(GLOB_RECURSE TTF_LIB_FILES
     ${TTF2BPP_RENDER_PATH}/pnghelper.cpp
     ${TTF2BPP_RENDER_PATH}/render_glyph_conv.cpp
     ${TTF2BPP_RENDER_PATH}/render_glyph_conv.h
+    ${TTF2BPP_CONFIG_PATH}/glyphs.cpp
     ${TTF2BPP_CONFIG_PATH}/configuration.cpp
     ${TTF2BPP_CONFIG_PATH}/convert.cpp
     ${TTF2BPP_CONFIG_PATH}/config_impl.h
+    ${TTF2BPP_INCLUDE_PATH}/glyphs.h
     ${TTF2BPP_INCLUDE_PATH}/renderer.h
     ${TTF2BPP_INCLUDE_PATH}/configuration.h
     ${TTF2BPP_INCLUDE_PATH}/ttf2bpp.h
