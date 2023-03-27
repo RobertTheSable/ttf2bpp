@@ -28,7 +28,6 @@ int main(int argc, char* argv[])
     std::vector<std::string> blocks{};
     bool useUnicode = false;
     if (argc == 1 || *(argv[1]) == '-') {
-
         cxxopts::Options programOptions(
                         argv[0],
                     "Program to create a 2BPP font front a Freetype-compatible font.");
@@ -55,7 +54,12 @@ int main(int argc, char* argv[])
                     "FILE"
                 )
                 ("h,help", "Show this message.")
-                ("font-file","Font file to parse",  cxxopts::value<std::string>())
+                (
+                    "input-file",
+                    "Font or image file to parse.\n"
+                    "Image must be 128 pixels wide, a multiple of 16 pixels tall, and use the same palette as an output image.",
+                    cxxopts::value<std::string>()
+                )
                 ("output-file","Output File (Optional)",  cxxopts::value<std::string>());
         programOptions.parse_positional({"font-file", "output-file"});
         programOptions.positional_help("[font-file] (output-file)");
@@ -97,7 +101,6 @@ int main(int argc, char* argv[])
     auto config = ttf2bpp::readConfiguration("config.yml").updateOutputParams(fontpath, encFile);
 
     try {
-        auto sorted = config.arrange(getData(useUnicode, glyphFile, std::move(blocks)));
 
         auto finder =[&config] (ttf2bpp::Configuration::Colors clr) -> std::optional<int> {
              auto res = std::find(config.ordering.begin(), config.ordering.end(), clr);
@@ -113,15 +116,19 @@ int main(int argc, char* argv[])
             .border1 = finder(ttf2bpp::Configuration::Colors::Border).value_or(1),
             .border2 = finder(ttf2bpp::Configuration::Colors::Unused).value_or(0),
         };
-        ttf2bpp::Renderer render(config.baseline, config.alphaThreshold, config.borderPointSize, palette, fontpath);
+        auto render = config.getRenderer(palette, fontpath);
         if (!(bool)render) {
             std::cerr << "renderer is invalid.";
             return 2;
         }
+        if (!render.imageMode()) {
+            auto sorted = config.arrange(getData(useUnicode, glyphFile, std::move(blocks)));
+            auto configData = render.render(std::span<unsigned long>(sorted.begin(), sorted.size()), config.getOutputPath(fontpath, output), config.glyphWidth);
 
-        auto configData = render.render(std::span<unsigned long>(sorted.begin(), sorted.size()), config.getOutputPath(fontpath, output));
-
-        config.writeFontData(configData);
+            config.writeFontData(configData);
+        } else {
+            render.encodeImage(fontpath, config.getOutputPath(fontpath, output));
+        }
         ttf2bpp::writeConfiguration("config.yml", config);
         std::cout << "Font generated successfully.\n";
     } catch(std::runtime_error &e) {

@@ -18,7 +18,6 @@ namespace ttf2bpp {
 //constexpr const unsigned int QuantumMax = (1 << MAGICKCORE_QUANTUM_DEPTH) - 1;
 //constexpr const unsigned int QuantumAlphaTransparent = (MAGICKCORE_HDRI_ENABLE == 0) ? QuantumMax : 0;
 //constexpr const unsigned int QuantumAlphaOpaque = QuantumMax - QuantumAlphaTransparent;
-constexpr const unsigned int GlyphDimention = 16;
 
 namespace  {
 //    bool magickLoaded = false;
@@ -35,6 +34,7 @@ struct RenderResult {
 class Renderer::pImpl {
     bool strokerLoaded = false;
     bool faceLoaded = false;
+    bool imageMode = false;
 public:
     int         baseline = 13;
     int         alphaThreshold = 112;
@@ -44,7 +44,18 @@ public:
     FT_Stroker  stroker;
     ColorIndexes indexes;
     FT_Library lib;
-    pImpl(int b, int a, int bd, const std::string& fPath): baseline{b}, alphaThreshold{a}, borderPointSize{bd}, facePath{fPath} {
+    pImpl(ColorIndexes pal)
+    {
+        indexes = pal;
+        imageMode = true;
+    }
+    pImpl(
+        int b,
+        int a,
+        int bd,
+        const std::string& fPath,
+        int renderSize
+    ): baseline{b}, alphaThreshold{a}, borderPointSize{bd}, facePath{fPath} {
         if (FT_Init_FreeType(&lib)) {
             throw std::runtime_error("Freetype library not loaded.");
         }
@@ -57,7 +68,7 @@ public:
             throw std::runtime_error("Face not created.");
         }
         faceLoaded = true;
-        if (FT_Set_Pixel_Sizes(face, 0, GlyphDimention)) {
+        if (FT_Set_Pixel_Sizes(face, 0, renderSize)) {
             throw std::runtime_error("Face size not set.");
         }
         if (FT_Stroker_New(lib, &stroker)) {
@@ -75,7 +86,11 @@ public:
         }
         FT_Done_FreeType(lib);
     }
-    bool RenderGlyphSection(int top, int left, FT_Bitmap bitmap, std::span<unsigned char> pixels, unsigned char red, unsigned char green, unsigned char blue, bool keepOpacity) {
+    bool inPictureMode()
+    {
+        return imageMode;
+    }
+    bool RenderGlyphSection(int top, int left, FT_Bitmap bitmap, std::span<unsigned char> pixels, unsigned char red, unsigned char green, unsigned char blue, bool keepOpacity, int width) {
         for (int y = 0; y < bitmap.rows; ++y) {
             for (int x = 0; x < bitmap.width; ++x) {
                 int realy = y + top;
@@ -83,7 +98,7 @@ public:
                 if (realy < 0 || realy >= GlyphDimention) {
                     continue;
                 }
-                int target = realx + (realy * GlyphDimention);
+                int target = realx + (realy * width);
                 int source = x + (y * bitmap.width);
 
                 auto px = pixels.begin()+(target*4);
@@ -104,7 +119,7 @@ public:
         return true;
     }
 
-    RenderResult DrawGlyph(FT_ULong c)
+    RenderResult DrawGlyph(FT_ULong c, int imageWidth)
     {
         int width = 0;
         auto glyph_index = FT_Get_Char_Index(face, c);
@@ -123,12 +138,12 @@ public:
         int top = bmpGlyph->top;
         int borderLeft = bmpGlyph->left;
         width = bmpGlyph->bitmap.width;
-        std::vector<unsigned char> pixels(GlyphDimention * GlyphDimention * 4, 0);
-        RenderGlyphSection(baseline - top, 0, bmpGlyph->bitmap, std::span(pixels.begin(), pixels.end()), 0, 0, 0, false);
+        std::vector<unsigned char> pixels(imageWidth * GlyphDimention * 4, 0);
+        RenderGlyphSection(baseline - top, 0, bmpGlyph->bitmap, std::span(pixels.begin(), pixels.end()), 0, 0, 0, false, imageWidth);
 
         FT_Done_Glyph(glyph);
 
-        png::image<png::rgba_pixel> img1 = buildPng({pixels.begin(), pixels.size()}, GlyphDimention, GlyphDimention);
+        png::image<png::rgba_pixel> img1 = buildPng({pixels.begin(), pixels.size()}, imageWidth, GlyphDimention);
 
         for(auto &px: pixels) {
             px = 0;
@@ -144,10 +159,10 @@ public:
         bmpGlyph = reinterpret_cast<FT_BitmapGlyph>(glyph);
         int glyphLeft = bmpGlyph->left;
         top = bmpGlyph->top;
-        RenderGlyphSection(baseline - top, glyphLeft-borderLeft, bmpGlyph->bitmap, std::span(pixels.begin(), pixels.end()), 255, 255, 255, true);
+        RenderGlyphSection(baseline - top, glyphLeft-borderLeft, bmpGlyph->bitmap, std::span(pixels.begin(), pixels.end()), 255, 255, 255, true, imageWidth);
         FT_Done_Glyph(glyph);
 
-        auto img2 = buildPng({pixels.begin(), pixels.size()}, GlyphDimention, GlyphDimention);
+        auto img2 = buildPng({pixels.begin(), pixels.size()}, imageWidth, GlyphDimention);
 
         composite(img1, img2, 0, 0);
 
@@ -212,26 +227,32 @@ Renderer::Renderer(
     int alphaThreshold,
     int borderPointSize,
     ColorIndexes idxs,
-    const std::string& facePath
+    const std::string& facePath,
+    int renderWidth
 ) {
     if (idxs.background == idxs.border1 || idxs.background == idxs.text || idxs.border1 == idxs.text) {
         throw std::runtime_error("Color ordering cannot contain duplicates.");
     }
     _valid = false;
     _inFileName = facePath;
-    _impl = std::make_unique<pImpl>(baseline, alphaThreshold, borderPointSize, facePath);
+    _impl = std::make_unique<pImpl>(baseline, alphaThreshold, borderPointSize, facePath, renderWidth);
     _impl->indexes = idxs;
     _valid = true;
+}
+
+Renderer::Renderer(ColorIndexes indexes)
+{
+    _impl = std::make_unique<pImpl>(indexes);
 }
 
 Renderer::~Renderer()=default;
 
 Renderer::operator bool() const
 {
-    return _valid;
+    return _valid || _impl->inPictureMode();
 }
 
-std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const std::string& filename)
+std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const std::string& filename, int glyphWidth)
 {
     using fspath = std::filesystem::path;
     if (!_valid) {
@@ -258,17 +279,19 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
         return code;
     };
 
+
+    int rowSize = 128 / glyphWidth;
     if (image) {
         int i = 0;
         int rows = 0;
-        for (int count = glyphs.size(); count > 0; count -= 8) {
+        for (int count = glyphs.size(); count > 0; count -= rowSize) {
             ++rows;
         }
-        auto bgImage = buildPng(BackgroundColor, GlyphDimention*8, GlyphDimention*rows);
+        auto bgImage = buildPng(BackgroundColor, glyphWidth*rowSize, GlyphDimention*rows);
         for (auto c : glyphs) {
-            int x = i%8, y = i/8;
-            auto result = _impl->DrawGlyph(c);
-            composite(bgImage, result.img, x*GlyphDimention, y*GlyphDimention);
+            int x = i%rowSize, y = i/rowSize;
+            auto result = _impl->DrawGlyph(c, glyphWidth);
+            composite(bgImage, result.img, x*glyphWidth, y*GlyphDimention);
             i = append(c, result.width, i);
         }
 
@@ -278,9 +301,9 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
         std::vector<png::image<png::rgba_pixel>> row;
         int i = 0;
         for (auto c : glyphs) {
-            auto bgImage = buildPng(BackgroundColor, GlyphDimention, GlyphDimention);
+            auto bgImage = buildPng(BackgroundColor, glyphWidth, GlyphDimention);
 
-            auto result =  _impl->DrawGlyph(c);
+            auto result =  _impl->DrawGlyph(c, glyphWidth);
             composite(bgImage, result.img, 0, 0);
             row.push_back(bgImage);
             if (row.size() == 8) {
@@ -290,8 +313,8 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
             i = append(c, result.width, i);
         }
         if (!row.empty()) {
-            while(row.size() != 8) {
-                row.push_back(buildPng(BackgroundColor, GlyphDimention, GlyphDimention));
+            while(row.size() != rowSize) {
+                row.push_back(buildPng(BackgroundColor, glyphWidth, GlyphDimention));
             }
             _impl->appendBppRowsData(row, data);
         }
@@ -302,6 +325,33 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
     }
 
     return gData;
+}
+
+void Renderer::encodeImage(const std::string& inFile, const std::string outfile) const
+{
+    png::image<png::rgba_pixel> img(inFile);
+    if (img.get_width() != GlyphDimention * 8) {
+        throw std::runtime_error("Invalid input image");
+    }
+    int columns = 8;
+    int rows = img.get_height() /GlyphDimention;
+    std::vector<unsigned char> data;
+    for (int y = 0; y < rows; ++y) {
+        std::vector<png::image<png::rgba_pixel>> row;
+        for (int x = 0; x < columns; ++x) {
+            row.push_back(buildPng(img, x*GlyphDimention, y*GlyphDimention, GlyphDimention, GlyphDimention));
+        }
+        _impl->appendBppRowsData(row, data);
+    }
+    std::ofstream output(outfile, std::ios_base::binary);
+    output.write((char*)data.data(), data.size());
+    output.flush();
+    output.close();
+}
+
+bool Renderer::imageMode() const
+{
+    return _valid && _impl->inPictureMode();
 }
 
 } // namespace ttf2bpp

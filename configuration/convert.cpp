@@ -69,6 +69,8 @@ namespace YAML {
     //constexpr const char* EncExt = "EncodingType";
     constexpr const char* AlphaThresh = "AlphaThreshold";
     constexpr const char* PT_Size = "BorderPointSize";
+    constexpr const char* GlyphWidth = "GlyphWidth";
+    constexpr const char* RenderWidth = "RenderWidth";
     bool convert<ttf2bpp::Configuration>::decode(const Node& node, ttf2bpp::Configuration& rhs)
     {
         if (auto rGlyphNode = node[Reserved]; rGlyphNode.IsDefined() && rGlyphNode.IsMap()) {
@@ -129,6 +131,27 @@ namespace YAML {
             }
             rhs.borderPointSize = ptSize.as<int>();
         }
+
+        if (auto glyphSize = node[GlyphWidth] ; glyphSize.IsDefined()) {
+            if (!glyphSize.IsScalar()) {
+                return false;
+            }
+            if (auto val = glyphSize.as<int>(); val != 8 && val != 16) {
+                 throw YAML::Exception(node.Mark(), "Glyphs width must be 8 or 16.");
+            } else {
+                rhs.glyphWidth = val;
+            }
+        } else {
+            rhs.glyphWidth = ttf2bpp::GlyphDimention;
+        }
+        if (auto renderSize = node[RenderWidth] ; renderSize.IsDefined()) {
+            if (!renderSize.IsScalar()) {
+                return false;
+            }
+            rhs.renderWidth = renderSize.as<int>();
+        } else {
+            rhs.renderWidth = rhs.glyphWidth;
+        }
         return true;
     }
     Node convert<ttf2bpp::Configuration>::encode(const ttf2bpp::Configuration& rhs) {
@@ -151,6 +174,12 @@ namespace YAML {
         n[PT_Size] = rhs.borderPointSize;
         if (rhs.encNameSet) {
             n[EncFileName] = rhs.encFileName;
+        }
+        if (rhs.glyphWidth != ttf2bpp::GlyphDimention) {
+            n[GlyphWidth] = rhs.glyphWidth;
+        }
+        if (rhs.glyphWidth != rhs.renderWidth) {
+            n[RenderWidth] = rhs.renderWidth;
         }
 
         return n;

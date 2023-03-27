@@ -29,6 +29,7 @@ struct TTF_BPP_EXPORT Configuration {
     enum class EncType {YAML};
     int maxCode = 0;
     int baseline = 13, alphaThreshold = 112, borderPointSize = 40;
+    int glyphWidth = GlyphDimention, renderWidth = GlyphDimention;
     EncType outEncoding = EncType::YAML;
     std::string encFileName;
     std::string extension = ".smc";
@@ -40,6 +41,7 @@ struct TTF_BPP_EXPORT Configuration {
     std::vector<unsigned long> arrange(const std::vector<unsigned long>& input) const;
     std::string getOutputPath(const std::string& in, const std::string& out) const;
     void writeFontData(const std::vector<GlyphData> &data) const;
+    Renderer getRenderer(ColorIndexes paletter, const std::string& file) const;
 };
 
 TTF_BPP_EXPORT Configuration readConfiguration(const std::string& path);

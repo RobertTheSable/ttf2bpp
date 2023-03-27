@@ -20,6 +20,9 @@ struct TTF_BPP_EXPORT GlyphData {
     int length;
 };
 
+constexpr const unsigned int BaseGlyphDimention = 8;
+constexpr const unsigned int GlyphDimention = 16;
+
 class TTF_BPP_EXPORT Renderer
 {
     struct pImpl;
@@ -32,11 +35,15 @@ public:
         int alphaThreshold,
         int borderPointSize,
         ColorIndexes indexes,
-        const std::string& facePath
+        const std::string& facePath,
+        int renderWidth
     );
+    Renderer(ColorIndexes indexes);
     ~Renderer();
     explicit operator bool() const;
-    std::vector<GlyphData> render(std::span<unsigned long> glyphs, const std::string& filename);
+    std::vector<GlyphData> render(std::span<unsigned long> glyphs, const std::string& filename, int glyphWidth);
+    void encodeImage(const std::string& inFile, const std::string outfile) const;
+    bool imageMode() const;
 };
 
 } // namespace ttf2bpp

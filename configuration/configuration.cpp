@@ -99,10 +99,13 @@ TTF_BPP_EXPORT std::vector<unsigned long> ttf2bpp::Configuration::arrange(const 
 
 std::string Configuration::getOutputPath(const std::string &in, const std::string &out) const
 {
+    using fspath = std::filesystem::path;
     if (!out.empty()) {
+        if (fspath(in).extension() == fspath(out).extension()) {
+            throw std::runtime_error("Nothing to do - input and output format are the same.");
+        }
         return out;
     }
-    using fspath = std::filesystem::path;
     return fspath(in).filename().replace_extension(fspath(extension)).string();
 }
 
@@ -115,6 +118,15 @@ void Configuration::writeFontData(const std::vector<GlyphData> &data) const
     }
     output << n;
     output.close();
+}
+
+Renderer Configuration::getRenderer(ColorIndexes palette, const std::string &file) const
+{
+    using fspath = std::filesystem::path;
+    if (fspath(file).extension() == ".png") {
+        return Renderer(palette);
+    }
+    return Renderer(baseline, alphaThreshold, borderPointSize, palette, file, renderWidth);
 }
 
 Configuration& Configuration::updateOutputParams(const std::string &fontFile, const std::string &encFile)
