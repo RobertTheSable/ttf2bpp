@@ -26,19 +26,24 @@ struct TTF_BPP_EXPORT Reserved {
 
 struct TTF_BPP_EXPORT Configuration {
     enum class Colors {Background, Border, Text, Unused};
-    int spaceWidth;
+    enum class EncType {YAML};
     int maxCode = 0;
+    int baseline = 13, alphaThreshold = 112, borderPointSize = 40;
+    EncType outEncoding = EncType::YAML;
+    std::string encFileName;
     std::string extension = ".smc";
+    bool encNameSet = false;
     std::set<Reserved> reservedGlyphs;
     std::array<Colors, 4> ordering = {Colors::Unused, Colors::Border, Colors::Text, Colors::Background};
     // bool rightToLeft;
+    Configuration& updateOutputParams(const std::string& fontFile, const std::string& encFile);
     std::vector<unsigned long> arrange(const std::vector<unsigned long>& input) const;
     std::string getOutputPath(const std::string& in, const std::string& out) const;
+    void writeFontData(const std::vector<GlyphData> &data) const;
 };
 
 TTF_BPP_EXPORT Configuration readConfiguration(const std::string& path);
 TTF_BPP_EXPORT void writeConfiguration(const std::string& path, Configuration config);
-TTF_BPP_EXPORT void writeFontData(const std::string& path, const std::vector<GlyphData>& data);
 }
 
 #endif // CONFIGURATION_H

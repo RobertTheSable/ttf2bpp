@@ -40,7 +40,6 @@ public:
     int         alphaThreshold = 112;
     int         borderPointSize = 40;
     std::string facePath;
-    std::string workpath;
     FT_Face     face;
     FT_Stroker  stroker;
     ColorIndexes indexes;
@@ -112,7 +111,7 @@ public:
         if (FT_Load_Glyph(face, glyph_index, FT_LOAD_DEFAULT)) {
             throw std::runtime_error("Glyph not loaded.");
         }
-        auto metrics = face->glyph->metrics;
+        auto advance = face->glyph->advance.x;
 
         FT_Glyph glyph;
         FT_Get_Glyph(face->glyph, &glyph);
@@ -126,6 +125,7 @@ public:
         width = bmpGlyph->bitmap.width;
         std::vector<unsigned char> pixels(GlyphDimention * GlyphDimention * 4, 0);
         RenderGlyphSection(baseline - top, 0, bmpGlyph->bitmap, std::span(pixels.begin(), pixels.end()), 0, 0, 0, false);
+
         FT_Done_Glyph(glyph);
 
         png::image<png::rgba_pixel> img1 = buildPng({pixels.begin(), pixels.size()}, GlyphDimention, GlyphDimention);
@@ -151,6 +151,10 @@ public:
 
         composite(img1, img2, 0, 0);
 
+        if (width == 0) {
+            width = (advance >> 6);
+        }
+
         return RenderResult{
             .img = img1,
             .width = width
@@ -165,12 +169,9 @@ public:
         auto outPtr = data.begin();
         for (int x = 0; x < 2 ; ++x) {
             auto quarterimage = buildPng(bgImage, x*quarterSize, y*quarterSize, quarterSize, quarterSize);
-//            auto pixelPtr = bgImage.getConstPixels(x*quarterSize, y*quarterSize, quarterSize, quarterSize);
-
             for (int qY = 0; qY < quarterSize; ++qY) {
                 for (int qX = 0; qX < quarterSize; ++qX) {
                     auto packet = quarterimage.get_pixel(qX, qY);
-//                    auto pxColor = Magick::Color(packet.red, packet.green, packet.blue, QuantumAlphaOpaque);
                     unsigned char bitmask1 = 0, bitmask2 = 0;
                     if (equals(packet, BackgroundColor)) {
                         bitmask1 = indexes.background & 1;
@@ -211,7 +212,6 @@ Renderer::Renderer(
     int alphaThreshold,
     int borderPointSize,
     ColorIndexes idxs,
-    const std::string& workPath,
     const std::string& facePath
 ) {
     if (idxs.background == idxs.border1 || idxs.background == idxs.text || idxs.border1 == idxs.text) {
@@ -221,7 +221,6 @@ Renderer::Renderer(
     _inFileName = facePath;
     _impl = std::make_unique<pImpl>(baseline, alphaThreshold, borderPointSize, facePath);
     _impl->indexes = idxs;
-    _impl->workpath = workPath;
     _valid = true;
 }
 
@@ -251,6 +250,14 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
     }
 
     std::vector<GlyphData> gData;
+    auto append = [&gData] (unsigned long utfEnc, int width, int code) -> int {
+        if (width != 0) {
+            gData.push_back(getGlyphData(utfEnc, width, code + 1));
+            return code+1;
+        }
+        return code;
+    };
+
     if (image) {
         int i = 0;
         int rows = 0;
@@ -262,8 +269,7 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
             int x = i%8, y = i/8;
             auto result = _impl->DrawGlyph(c);
             composite(bgImage, result.img, x*GlyphDimention, y*GlyphDimention);
-            ++i;
-            gData.push_back(getGlyphData(c, result.width, i+1));
+            i = append(c, result.width, i);
         }
 
         bgImage.write(outfilepath);
@@ -281,8 +287,7 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
                 _impl->appendBppRowsData(row, data);
                 row.clear();
             }
-            gData.push_back(getGlyphData(c, result.width, i+1));
-            ++i;
+            i = append(c, result.width, i);
         }
         if (!row.empty()) {
             while(row.size() != 8) {
@@ -295,6 +300,7 @@ std::vector<GlyphData> Renderer::render(std::span<unsigned long> glyphs, const s
         output.flush();
         output.close();
     }
+
     return gData;
 }
 

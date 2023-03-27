@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-project(ttf-test)
+project(ttf-2-bpp)
 
 
 set(TTF2BPP_RENDER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/render")
@@ -46,7 +46,6 @@ target_include_directories(ttf2bpp-lib PUBLIC
     ${YAML_INCLUDE_DIR}
 )
 
-#check_magick(ttf2bpp-lib)
 check_pngpp(ttf2bpp-lib)
 
 add_executable(ttf-test "${CMAKE_CURRENT_SOURCE_DIR}/interface/main.cpp")

@@ -51,9 +51,7 @@ TTF_BPP_EXPORT Configuration readConfiguration(const std::string& path)
             throw std::runtime_error(e.what());
         }
     }
-    auto defConfiguration = Configuration{
-        .spaceWidth = 3,
-    };
+    auto defConfiguration = Configuration{};
     return defConfiguration;
 
 }
@@ -66,16 +64,6 @@ TTF_BPP_EXPORT void writeConfiguration(const std::string& path, Configuration co
     YAML::Node outnode;
     outnode = config;
     output << outnode;
-    output.close();
-}
-TTF_BPP_EXPORT void writeFontData(const std::string& path, const std::vector<GlyphData>& data)
-{
-    std::ofstream output(path);
-    YAML::Node n;
-    for (auto& gl: data) {
-        n[gl.utf8Repr] = gl;
-    }
-    output << n;
     output.close();
 }
 
@@ -116,6 +104,30 @@ std::string Configuration::getOutputPath(const std::string &in, const std::strin
     }
     using fspath = std::filesystem::path;
     return fspath(in).filename().replace_extension(fspath(extension)).string();
+}
+
+void Configuration::writeFontData(const std::vector<GlyphData> &data) const
+{
+    std::ofstream output(encFileName);
+    YAML::Node n;
+    for (auto& gl: data) {
+        n[gl.utf8Repr] = gl;
+    }
+    output << n;
+    output.close();
+}
+
+Configuration& Configuration::updateOutputParams(const std::string &fontFile, const std::string &encFile)
+{
+    using fspath = std::filesystem::path;
+    if (encFile != "") {
+        encFileName = encFile;
+        encNameSet = true;
+        return *this;
+    }
+    encNameSet = false;
+    encFileName = fspath(fontFile).filename().replace_extension(fspath(".yml")).string();
+    return *this;
 }
 
 } // namespace ttf2bpp

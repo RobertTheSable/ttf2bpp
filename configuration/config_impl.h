@@ -10,13 +10,9 @@ namespace YAML {
     };
     template <>
     class convert<ttf2bpp::Configuration::Colors> {
-        using Color = ttf2bpp::Configuration::Colors;
-        static constexpr const char* BG = "Background";
-        static constexpr const char* Text = "Text";
-        static constexpr const char* Border = "Border";
     public:
-        static bool decode(const Node& node, Color& rhs);
-        static Node encode(const Color& rhs);
+        static bool decode(const Node& node, ttf2bpp::Configuration::Colors& rhs);
+        static Node encode(const ttf2bpp::Configuration::Colors& rhs);
     };
     template <>
     struct convert<ttf2bpp::Configuration> {

@@ -1,6 +1,3 @@
-#if (NOT SKIP_MAGICK)
-#    find_package(ImageMagick REQUIRED COMPONENTS Magick++ MagickCore)
-#endif()
 
 find_package(Freetype REQUIRED)
 if (Freetype::Freetype)
@@ -12,8 +9,6 @@ endif()
 find_package(Boost 1.71.0 REQUIRED COMPONENTS locale)
 message(STATUS ${Boost_INCLUDE_DIRS})
 find_package(ICU 66.1 REQUIRED COMPONENTS in uc dt)
-
-#include(cmake/magick.cmake)
 
 find_library(YAML yaml-cpp)
 if(NOT YAML)

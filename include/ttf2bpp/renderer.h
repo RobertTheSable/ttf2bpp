@@ -32,7 +32,6 @@ public:
         int alphaThreshold,
         int borderPointSize,
         ColorIndexes indexes,
-        const std::string& workPath,
         const std::string& facePath
     );
     ~Renderer();
