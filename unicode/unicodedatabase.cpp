@@ -13,9 +13,6 @@
 namespace ttf2bpp {
 
 namespace {
-struct comparator {
-
-};
 
 struct state {
     bool inGroup = false;
@@ -85,7 +82,6 @@ startElement(void *userData, const XML_Char *name, const XML_Char **atts)
             }
         }
     }
-    //userData = reinterpret_cast<void*>(m_state);
 }
 
 void XMLCALL

@@ -6,7 +6,6 @@
 #include <fstream>
 #include <filesystem>
 
-//#include <Magick++.h>
 #include <freetype/freetype.h>
 #include "pnghelper.h"
 #include <png++/png.hpp>
@@ -14,10 +13,6 @@
 #include FT_STROKER_H
 
 namespace ttf2bpp {
-
-//constexpr const unsigned int QuantumMax = (1 << MAGICKCORE_QUANTUM_DEPTH) - 1;
-//constexpr const unsigned int QuantumAlphaTransparent = (MAGICKCORE_HDRI_ENABLE == 0) ? QuantumMax : 0;
-//constexpr const unsigned int QuantumAlphaOpaque = QuantumMax - QuantumAlphaTransparent;
 
 namespace  {
 //    bool magickLoaded = false;

@@ -9,7 +9,7 @@
 namespace notify {
 bool isTerminal()
 {
-    // TODO: maybe there's a more reliabel check on windows?
+    // TODO: maybe there's a more reliable check on windows?
     DWORD buffer[2];
     DWORD count = GetConsoleProcessList(buffer, 2);
     if (count == 1) {
