@@ -110,7 +110,7 @@ i.e. if this value is 1, and the string "ABCDE" is encoded:
 - D will have code 4
 - E will have code 5
 
-If not specified, the fedault value is 1.
+If not specified, the default value is 1.
 
 ================================ ReservedGlyphs ================================
 
