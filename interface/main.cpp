@@ -28,6 +28,7 @@ int main(int argc, char* argv[])
     std::string encFile = "";
     std::vector<std::string> blocks{};
     bool useUnicode = false;
+    bool fileSpecified = false;
     if (argc == 1 || *(argv[1]) == '-') {
         if (argc ==1 && !notify::isTerminal())
         {
@@ -88,6 +89,7 @@ int main(int argc, char* argv[])
             }
             if (result.count("glyph-file")) {
                 glyphFile = result["glyph-file"].as<std::string>();
+                fileSpecified = true;
             } else if (result.count("unicode-block")) {
                 useUnicode = true;
                 blocks = result["unicode-block"].as<std::vector<std::string>>();
@@ -107,14 +109,17 @@ int main(int argc, char* argv[])
         }
     }
 
-    auto config = ttf2bpp::readConfiguration("config.yml").updateOutputParams(fontpath, encFile);
+    auto config = ttf2bpp::readConfiguration("config.yml").changeOutputParams(fontpath, encFile);
 
+    if (~fileSpecified && blocks.empty() && !config->codeBlocks.empty() ) {
+        useUnicode = true;
+        blocks = config->codeBlocks;
+    }
     try {
-
         auto finder =[&config] (ttf2bpp::Configuration::Colors clr) -> std::optional<int> {
-             auto res = std::find(config.ordering.begin(), config.ordering.end(), clr);
-             if (res != std::end(config.ordering)) {
-                 return res - std::begin(config.ordering);
+             auto res = std::find(config->ordering.begin(), config->ordering.end(), clr);
+             if (res != std::end(config->ordering)) {
+                 return res - std::begin(config->ordering);
              }
              return std::nullopt;
         };
@@ -132,9 +137,15 @@ int main(int argc, char* argv[])
         }
         if (!render.imageMode()) {
             auto sorted = config.arrange(getData(useUnicode, glyphFile, std::move(blocks)));
-            auto configData = render.render(std::span(sorted.begin(), sorted.size()), config.getOutputPath(fontpath, output), config.glyphWidth);
+            auto configData = render.render(
+                std::span(sorted.begin(), sorted.size()),
+                config.getOutputPath(fontpath, output),
+                config->glyphWidth
+            );
 
-            config.writeFontData(configData);
+            if (auto pageCount = config.writeFontData(configData); pageCount != 1) {
+                notify::notify(std::to_string(pageCount-1) + " extra text pages were generated.\n");
+            }
         } else {
             render.encodeImage(fontpath, config.getOutputPath(fontpath, output));
         }

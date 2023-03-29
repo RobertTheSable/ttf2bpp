@@ -51,11 +51,11 @@ TTF_BPP_EXPORT Configuration readConfiguration(const std::string& path)
             throw std::runtime_error(e.what());
         }
     }
-    auto defConfiguration = Configuration{};
-    return defConfiguration;
+    return Configuration{};
 
 }
-TTF_BPP_EXPORT void writeConfiguration(const std::string& path, Configuration config)
+
+TTF_BPP_EXPORT void writeConfiguration(const std::string& path, const Configuration& config)
 {
     if (std::filesystem::exists(std::filesystem::path(path))) {
         return;
@@ -67,7 +67,130 @@ TTF_BPP_EXPORT void writeConfiguration(const std::string& path, Configuration co
     output.close();
 }
 
-configuration::configuration()=default;
+struct Configuration::Impl {
+    int outputFontAsYAML(const options& conf, const std::vector<GlyphData> &data)
+    {
+        std::size_t max_val = 1 << (conf.fontByteWidth*8);
+        int pageCount = (data.size() / max_val) + 1;
+        using fspath = std::filesystem::path;
+        auto basename = fspath(conf.encFileName).stem().string();
+        auto ext = fspath(conf.encFileName).extension().string();
+        if (ext != ".yaml") {
+            ext = ".yml";
+        }
+        std::ofstream output(basename + ext);
+        YAML::Node n;
+        auto glyphItr = data.begin();
+        for (auto& gl: data) {
+            auto gl2 = gl;
+            gl2.code += conf.glyphStart;
+            if (gl2.code == max_val) {
+                break;
+            }
+            n[gl2.utf8Repr] = gl2;
+            ++glyphItr;
+        }
+        YAML::Node root;
+        root[basename]["Encoding"] = n;
+
+        int pageoffset = max_val;
+        for (int pgIdx = 1; pgIdx < pageCount; ++ pgIdx) {
+            YAML::Node page;
+            while (glyphItr != data.end()) {
+                auto gl2 = *glyphItr;
+                gl2.code += conf.glyphStart;
+                gl2.code -= (pageoffset - conf.glyphStart);
+                if (gl2.code == max_val) {
+                    break;
+                }
+                page[gl2.utf8Repr] = gl2;
+                ++glyphItr;
+            }
+            pageoffset += max_val;
+            root[basename]["Pages"].push_back(page);
+        }
+        output << root;
+        output.close();
+        return pageCount;
+    }
+    int outputFontAs64TASS(const options& conf, const std::vector<GlyphData> &data)
+    {
+        int pageoffset = 0;
+        std::size_t max_val = 1 << (conf.fontByteWidth*8);
+        int pageCount = (data.size() / max_val) + 1;
+        using fspath = std::filesystem::path;
+        auto basename = fspath(conf.encFileName).stem().string();
+
+        // width and encoding should go in separate files for convenience.
+        auto encPath = basename + "-enc.asm";
+
+        std::ofstream encFile(encPath);
+        encFile << ".enc \"" <<  basename << "\"\n" << std::hex;
+        auto w = encFile.width();
+        auto f = encFile.fill();
+        for (auto glyph: data) {
+            auto realVal = glyph.code + conf.glyphStart;
+            encFile << ".edef \"" << glyph.utf8Repr << "\", ";
+            if (conf.fontByteWidth == 1) {
+                encFile << '$'
+                        << std::setw(2) << std::setfill('0') << (realVal&0xFF)
+                        << std::setw(w) << std::setfill(f) << '\n';
+            } else {
+                encFile <<'[';
+                for (int count = 0; count < conf.fontByteWidth; ++count) {
+                    encFile << '$'
+                            << std::setw(2) << std::setfill('0') << (realVal &0xFF)
+                            << std::setw(w) << std::setfill(f) << ',';
+                    realVal >>= 8;
+                }
+                encFile.seekp(-1, std::ios_base::cur);
+
+                encFile << "]\n";
+            }
+        }
+        encFile.close();
+
+
+        std::ofstream widthFile;
+
+        if (conf.widthEncoding == WidthType::CSV) {
+            widthFile.open(basename + "-width.csv");
+            // TODO: do I need to add a header?
+        } else {
+            widthFile.open(basename + "-width.asm");
+        }
+        w = widthFile.width();
+        f = widthFile.fill();
+        auto glpyhItr = data.begin();
+        while (glpyhItr != data.end()) {
+            auto distance = data.end() - glpyhItr;
+            int rowWidth = distance >= 8 ? 8 : distance;
+            if (conf.widthEncoding == WidthType::TASS64) {
+                widthFile << ".byte ";
+            }
+            for (int col = 0; col < rowWidth; ++col) {
+                widthFile << std::setw(2) << std::setfill('0') <<  glpyhItr->length
+                          << std::setw(w) << std::setfill(f) << ',';
+                ++glpyhItr;
+            }
+            widthFile.seekp(-1, std::ios_base::cur);
+            widthFile << '\n';
+        }
+        widthFile.close();
+
+        return pageCount;
+    }
+};
+
+
+Configuration::~Configuration()=default;
+
+Configuration::Configuration()
+    : _pImpl(new Impl) {
+
+}
+
+Configuration::Configuration(Configuration &&)=default;
 
 TTF_BPP_EXPORT std::vector<GlyphInput> ttf2bpp::Configuration::arrange(const std::vector<unsigned long> &input) const
 {
@@ -76,10 +199,12 @@ TTF_BPP_EXPORT std::vector<GlyphInput> ttf2bpp::Configuration::arrange(const std
     }
     std::vector<GlyphInput> output;
     auto source = input.begin();
-    int idx = glyphStart;
-    for (auto& r: reservedGlyphs) {
+    int idx = params.glyphStart;
+    for (auto& r: params.reservedGlyphs) {
         while(idx < r.index) {
-            if (reservedGlyphs.find(Reserved{.code = *source, .search = true}) == reservedGlyphs.end()) {
+            if (params.reservedGlyphs.find(
+                    Reserved{.code = *source, .search = true}
+            ) == params.reservedGlyphs.end()) {
                 output.push_back({.label = toUtf8(*source), .utf32code = *source});
                 ++idx;
             }
@@ -106,24 +231,17 @@ std::string Configuration::getOutputPath(const std::string &in, const std::strin
         }
         return out;
     }
-    return fspath(in).filename().replace_extension(fspath(extension)).string();
+    return fspath(in).filename().replace_extension(fspath(params.extension)).string();
 }
 
-void Configuration::writeFontData(const std::vector<GlyphData> &data) const
+int Configuration::writeFontData(const std::vector<GlyphData> &data) const
 {
-    using fspath = std::filesystem::path;
-    auto basename = fspath(encFileName).stem().string();
-    std::ofstream output(encFileName);
-    YAML::Node n;
-    for (auto& gl: data) {
-        auto gl2 = gl;
-        gl2.code += glyphStart;
-        n[gl2.utf8Repr] = gl2;
+    if (params.outEncoding == EncType::YAML) {
+        return _pImpl->outputFontAsYAML(params, data);
+    } else {
+        return _pImpl->outputFontAs64TASS(params, data);
     }
-    YAML::Node root;
-    root[basename]["Encoding"] = n;
-    output << root;
-    output.close();
+
 }
 
 Renderer Configuration::getRenderer(ColorIndexes palette, const std::string &file) const
@@ -132,20 +250,56 @@ Renderer Configuration::getRenderer(ColorIndexes palette, const std::string &fil
     if (fspath(file).extension() == ".png") {
         return Renderer(palette);
     }
-    return Renderer(baseline, alphaThreshold, borderPointSize, palette, file, renderWidth);
+    return Renderer(
+        params.baseline,
+        params.alphaThreshold,
+        params.borderPointSize,
+        palette,
+        file,
+        params.renderWidth
+    );
 }
 
-Configuration& Configuration::updateOutputParams(const std::string &fontFile, const std::string &encFile)
+auto Configuration::operator->() -> options*
+{
+    return &params;
+}
+
+auto Configuration::operator*() -> options&
+{
+    return params;
+}
+
+auto Configuration::operator->() const -> const options*
+{
+    return &params;
+}
+
+auto Configuration::operator*() const -> const options&
+{
+    return params;
+}
+
+Configuration& Configuration::updateOutputParams(const std::string& fontFile, const std::string& encFile)
 {
     using fspath = std::filesystem::path;
     if (encFile != "") {
-        encFileName = encFile;
-        encNameSet = true;
+        params.encFileName = encFile;
+        params.encNameSet = true;
         return *this;
     }
-    encNameSet = false;
-    encFileName = fspath(fontFile).filename().replace_extension(fspath(".yml")).string();
+    params.encNameSet = false;
+
+    if (params.encFileName == "") {
+        params.encFileName = fspath(fontFile).stem().string();
+    }
+
     return *this;
+}
+
+Configuration&& Configuration::changeOutputParams(const std::string &fontFile, const std::string &encFile)
+{
+    return std::move(this->updateOutputParams(fontFile, encFile));
 }
 
 } // namespace ttf2bpp

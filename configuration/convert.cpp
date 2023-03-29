@@ -3,13 +3,16 @@
 #include <yaml-cpp/yaml.h>
 
 namespace YAML {
+    bool isNonDefault(const Node& node) {
+        return node.IsDefined() && !node.IsNull();
+    }
     bool convert<ttf2bpp::Reserved>::decode(const Node& node, ttf2bpp::Reserved& rhs)
     {
         if (!node.IsMap()) {
             return false;
         }
-        if (node["glyph"].IsDefined()) {
-            if (auto val = ttf2bpp::fromUtf8(node["glyph"].as<std::string>()); (bool)val) {
+        if (auto gNode = node["glyph"]; isNonDefault(gNode)) {
+            if (auto val = ttf2bpp::fromUtf8(gNode.as<std::string>()); (bool)val) {
                 rhs.code = *val;
                 rhs.isAlias = true;
             } else {
@@ -68,17 +71,22 @@ namespace YAML {
     constexpr const char* Palette = "Palette";
     constexpr const char* Reserved = "ReservedGlyphs";
     constexpr const char* Baseline = "Baseline";
-    constexpr const char* FontExt = "FontExtension";
-    constexpr const char* EncFileName = "EncodingFile";
-    //constexpr const char* EncExt = "EncodingType";
     constexpr const char* AlphaThresh = "AlphaThreshold";
     constexpr const char* PT_Size = "BorderPointSize";
     constexpr const char* GlyphWidth = "GlyphWidth";
     constexpr const char* RenderWidth = "RenderWidth";
     constexpr const char* GlyphIndexStart = "GlyphIndexStart";
+    constexpr const char* CodeBlocks = "CodeBlocks";
+    constexpr const char* FontExt = "FontExtension";
+    constexpr const char* EncFileName = "EncodingFile";
+    constexpr const char* EncFileSub = "Filename";
+    constexpr const char* EncSection = "Encoding";
+    constexpr const char* EncExt = "Glyphs";
+    constexpr const char* WidthExt = "Width";
+    constexpr const char* ByteWidth = "ByteWidth";
     bool convert<ttf2bpp::Configuration>::decode(const Node& node, ttf2bpp::Configuration& rhs)
     {
-        if (auto rGlyphNode = node[Reserved]; rGlyphNode.IsDefined() && rGlyphNode.IsMap()) {
+        if (auto rGlyphNode = node[Reserved]; isNonDefault(rGlyphNode) && rGlyphNode.IsMap()) {
             for (auto it = rGlyphNode.begin(); it != rGlyphNode.end(); ++it) {
                 auto reservedGlyph = it->second.as<ttf2bpp::Reserved>();
                 reservedGlyph.label = it->first.as<std::string>();
@@ -89,13 +97,13 @@ namespace YAML {
                         throw YAML::Exception(node.Mark(), "Glyphs must correspond to a single UTF32 code point.");
                     }
                 }
-                if (reservedGlyph.index > rhs.maxCode) {
-                    rhs.maxCode = reservedGlyph.index;
+                if (reservedGlyph.index > rhs->maxCode) {
+                    rhs->maxCode = reservedGlyph.index;
                 }
-                rhs.reservedGlyphs.insert(reservedGlyph);
+                rhs->reservedGlyphs.insert(reservedGlyph);
             }
         }
-        if (auto colorNode = node[Palette]; colorNode.IsDefined()) {
+        if (auto colorNode = node[Palette]; isNonDefault(colorNode)) {
             using Color = ttf2bpp::Configuration::Colors;
             if (!colorNode.IsSequence()) {
                 return false;
@@ -104,78 +112,126 @@ namespace YAML {
             if (data.size() != 4) {
                 return false;
             }
-            std::copy(data.begin(), data.end(), rhs.ordering.begin());
+            std::copy(data.begin(), data.end(), rhs->ordering.begin());
         }
-        if (auto encName = node[EncFileName]; encName.IsDefined()) {
-            if (!encName.IsScalar()) {
-                return false;
-            }
-            rhs.encFileName = encName.as<std::string>();
-        }
-        if (auto extNode = node[FontExt]; extNode.IsDefined()) {
+        if (auto extNode = node[FontExt]; isNonDefault(extNode)) {
             if (!extNode.IsScalar()) {
                 return false;
             }
-            rhs.extension = extNode.as<std::string>();
+            rhs->extension = extNode.as<std::string>();
         }
-        if (auto bsl = node[Baseline] ; bsl.IsDefined()) {
+        if (auto bsl = node[Baseline] ; isNonDefault(bsl)) {
             if (!bsl.IsScalar()) {
                 return false;
             }
-            rhs.baseline = bsl.as<int>();
+            rhs->baseline = bsl.as<int>();
         }
-        if (auto alpha = node[AlphaThresh] ; alpha.IsDefined()) {
+        if (auto alpha = node[AlphaThresh] ; isNonDefault(alpha)) {
             if (!alpha.IsScalar()) {
                 return false;
             }
-            rhs.alphaThreshold = alpha.as<int>();
+            rhs->alphaThreshold = alpha.as<int>();
         }
-        if (auto ptSize = node[PT_Size] ; ptSize.IsDefined()) {
+        if (auto ptSize = node[PT_Size] ; isNonDefault(ptSize)) {
             if (!ptSize.IsScalar()) {
                 return false;
             }
-            rhs.borderPointSize = ptSize.as<int>();
+            rhs->borderPointSize = ptSize.as<int>();
         }
 
-        if (auto glyphSize = node[GlyphWidth] ; glyphSize.IsDefined()) {
+        if (auto glyphSize = node[GlyphWidth] ; isNonDefault(glyphSize)) {
             if (!glyphSize.IsScalar()) {
                 return false;
             }
             if (auto val = glyphSize.as<int>(); val != 8 && val != 16) {
                  throw YAML::Exception(node.Mark(), "Glyphs width must be 8 or 16.");
             } else {
-                rhs.glyphWidth = val;
+                rhs->glyphWidth = val;
             }
         } else {
-            rhs.glyphWidth = ttf2bpp::GlyphDimention;
+            rhs->glyphWidth = ttf2bpp::GlyphDimention;
         }
-        if (auto renderSize = node[RenderWidth] ; renderSize.IsDefined()) {
+        if (auto renderSize = node[RenderWidth] ; isNonDefault(renderSize)) {
             if (!renderSize.IsScalar()) {
                 return false;
             }
-            rhs.renderWidth = renderSize.as<int>();
+            rhs->renderWidth = renderSize.as<int>();
         } else {
-            rhs.renderWidth = rhs.glyphWidth;
+            rhs->renderWidth = rhs->glyphWidth;
         }
 
-        if (auto gls= node[GlyphIndexStart]; gls.IsDefined()) {
+        if (auto gls= node[GlyphIndexStart]; isNonDefault(gls)) {
             if (!gls.IsScalar()) {
                 return false;
             }
             if (auto val = gls.as<int>(); val < 0) {
                 return false;
             } else {
-                rhs.glyphStart = val;
+                rhs->glyphStart = val;
             }
         }
+
+        bool filenameset = false;
+        if (auto encSection = node[EncSection]; isNonDefault(encSection)) {
+            if (!encSection.IsMap()) {
+                return false;
+            }
+            auto eEnc = encSection[EncExt];
+            bool yamlSet = false;
+            if (isNonDefault(eEnc)) {
+                rhs->outEncoding = eEnc.as<ttf2bpp::Configuration::EncType>();
+                yamlSet = rhs->outEncoding == ttf2bpp::Configuration::EncType::YAML;
+            } else {
+                rhs->outEncoding = ttf2bpp::Configuration::EncType::YAML;
+            }
+
+            if (auto wEnc = encSection[WidthExt]; isNonDefault(wEnc) && !yamlSet) {
+                rhs->widthEncoding = wEnc.as<ttf2bpp::Configuration::WidthType>();
+            } else if (yamlSet || !isNonDefault(eEnc)) {
+                rhs->widthEncoding = ttf2bpp::Configuration::WidthType::YAML;
+            } else {
+                rhs->widthEncoding = eEnc.as<ttf2bpp::Configuration::WidthType>();
+            }
+            if (auto fNode = encSection[EncFileSub]; isNonDefault(fNode)) {
+                bool filenameset = true;
+                if (!fNode.IsScalar()) {
+                    return false;
+                }
+                rhs->encFileName = fNode.as<std::string>();
+            }
+            if (auto bwNode = encSection[ByteWidth]; isNonDefault(bwNode)) {
+                if (!bwNode.IsScalar()) {
+                    return false;
+                }
+                rhs->fontByteWidth = bwNode.as<int>();
+            }
+        }
+
+        if (auto encName = node[EncFileName]; !filenameset && isNonDefault(encName)) {
+            if (!encName.IsScalar()) {
+                return false;
+            }
+            rhs->encFileName = encName.as<std::string>();
+        }
+
+        if (auto uBlk = node[CodeBlocks]; isNonDefault(uBlk)) {
+            if (!uBlk.IsSequence()) {
+                return false;
+            }
+            for (Node itr: uBlk) {
+                rhs->codeBlocks.push_back(itr.as<std::string>());
+            }
+        }
+
+
         return true;
     }
     Node convert<ttf2bpp::Configuration>::encode(const ttf2bpp::Configuration& rhs) {
         Node n;
 
-        if (!rhs.reservedGlyphs.empty()) {
+        if (!rhs->reservedGlyphs.empty()) {
             Node reservedGlyphNode;
-            for(auto reservedGlyph: rhs.reservedGlyphs) {
+            for(auto reservedGlyph: rhs->reservedGlyphs) {
                 Node subNode;
                 subNode["code"] = reservedGlyph.index;
                 reservedGlyphNode[ttf2bpp::toUtf8(reservedGlyph.code)] = subNode;
@@ -183,23 +239,30 @@ namespace YAML {
             n[Reserved] = reservedGlyphNode;
         }
 
-        n[Palette] = rhs.ordering;
-        n[FontExt] = rhs.extension;
-        n[Baseline] = rhs.baseline;
-        n[AlphaThresh] = rhs.alphaThreshold;
-        n[PT_Size] = rhs.borderPointSize;
-        if (rhs.encNameSet) {
-            n[EncFileName] = rhs.encFileName;
+        n[Palette] = rhs->ordering;
+        n[FontExt] = rhs->extension;
+        n[Baseline] = rhs->baseline;
+        n[AlphaThresh] = rhs->alphaThreshold;
+        n[PT_Size] = rhs->borderPointSize;
+        if (rhs->glyphWidth != ttf2bpp::GlyphDimention) {
+            n[GlyphWidth] = rhs->glyphWidth;
         }
-        if (rhs.glyphWidth != ttf2bpp::GlyphDimention) {
-            n[GlyphWidth] = rhs.glyphWidth;
+        if (rhs->glyphWidth != rhs->renderWidth) {
+            n[RenderWidth] = rhs->renderWidth;
         }
-        if (rhs.glyphWidth != rhs.renderWidth) {
-            n[RenderWidth] = rhs.renderWidth;
+        Node encNode;
+        encNode[EncExt] = rhs->outEncoding;
+        encNode[WidthExt] = rhs->widthEncoding;
+        encNode[ByteWidth] = rhs->fontByteWidth;
+        if (rhs->encNameSet) {
+            encNode[EncFileSub] = rhs->encFileName;
         }
+        n[EncSection] = encNode;
+        n[CodeBlocks] = rhs->codeBlocks;
 
         return n;
     }
+
     Node convert<ttf2bpp::GlyphData>::encode(const ttf2bpp::GlyphData& rhs) {
         auto n = Node();
         std::ostringstream fmt;

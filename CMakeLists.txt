@@ -64,5 +64,6 @@ target_link_libraries(ttf-2-bpp ttf2bpp-lib ${YAML} ${boxer_LIBRARIES})
 
 target_include_directories(ttf-2-bpp PUBLIC ${TTF2BPP_INCLUDE_PATH})
 
-
 setup_unicode_db()
+
+set(CMAKE_VERBOSE_MAKEFILE TRUE)
