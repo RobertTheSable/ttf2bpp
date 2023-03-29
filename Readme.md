@@ -20,6 +20,7 @@ ttf-2-bpp.exe -u ASCII some-font.ttf
 
 The Unicode block name must correspon to the block's "blk" attribute in 
 the [Unicode Character Database](https://www.unicode.org/Public/UCD/latest/ucdxml/).
+See [the specification](https://www.unicode.org/reports/tr42/#d1e2881) for the list of block names.
 
 
 ### Convert a font to 2BPP format based on two Unicode blocks
@@ -154,6 +155,20 @@ it is chosen based on the name of the input file.
 
 This option is ignored if the "Filename" setting in the "Encoding" section
 is set.
+
+### CodeBlocks
+
+An optional list of Unicode blocks to use when rendering the font.
+
+Example:
+```yaml
+CodeBlocks: 
+  - ASCII
+  - Latin_1_Sup
+```
+    
+This option is ignored if the --glyph-file option or any --unicode-block
+ options are given as program arguments.
 
 ### GlyphIndexStart
 
