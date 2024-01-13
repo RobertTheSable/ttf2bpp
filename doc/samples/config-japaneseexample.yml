@@ -1,0 +1,24 @@
+Palette:
+  - Unused
+  - Border
+  - Text
+  - Background
+ReservedGlyphs: ~
+Baseline: 13
+AlphaThreshold: 112
+BorderPointSize: 40
+GlyphWidth: ~
+RenderWidth: ~
+GlyphIndexStart: 10
+CodeBlocks: 
+    - Katakana
+    - Kana_Ext_A
+    - Kana_Ext_B
+    - Hiragana
+    - ASCII
+FontExtension: ~
+Encoding:
+    Filename: ~
+    Glyphs: yml
+    Width: ~
+    ByteWidth: ~

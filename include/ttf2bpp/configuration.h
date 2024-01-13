@@ -47,6 +47,7 @@ public:
         std::string extension = ".smc";
         bool encNameSet = false;
         std::set<Reserved> reservedGlyphs;
+        std::set<std::string> skippedGlyphs;
         std::vector<std::string> codeBlocks = {};
         std::array<Colors, 4> ordering = {Colors::Unused, Colors::Border, Colors::Text, Colors::Background};
     } params;
@@ -61,6 +62,7 @@ public:
     std::string getOutputPath(const std::string& in, const std::string& out) const;
     int writeFontData(const std::vector<GlyphData> &data) const;
     Renderer getRenderer(ColorIndexes paletter, const std::string& file) const;
+    static void initializeBackends();
 };
 
 TTF_BPP_EXPORT Configuration readConfiguration(const std::string& path);

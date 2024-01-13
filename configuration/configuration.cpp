@@ -68,6 +68,9 @@ TTF_BPP_EXPORT void writeConfiguration(const std::string& path, const Configurat
 }
 
 struct Configuration::Impl {
+#ifdef TTF_SET_ICU_DATA_DIR
+    inline static bool needInit = true;
+#endif
     int outputFontAsYAML(const options& conf, const std::vector<GlyphData> &data)
     {
         std::size_t max_val = 1 << (conf.fontByteWidth*8);
@@ -216,7 +219,9 @@ TTF_BPP_EXPORT std::vector<GlyphInput> ttf2bpp::Configuration::arrange(const std
         ++idx;
     }
     while (source != input.end()) {
-        output.push_back({.label = toUtf8(*source), .utf32code = *source});
+        if (params.skippedGlyphs.find(toUtf8(*source)) == params.skippedGlyphs.end()) {
+            output.push_back({.label = toUtf8(*source), .utf32code = *source});
+        }
         ++source;
     }
     return output;
@@ -257,7 +262,18 @@ Renderer Configuration::getRenderer(ColorIndexes palette, const std::string &fil
         palette,
         file,
         params.renderWidth
-    );
+                );
+}
+
+void Configuration::initializeBackends()
+{
+#ifdef TTF_SET_ICU_DATA_DIR
+    if (!Impl::needInit) {
+        return;
+    }
+    Impl::needInit = false;
+    setupDataDir(".");
+#endif
 }
 
 auto Configuration::operator->() -> options*
