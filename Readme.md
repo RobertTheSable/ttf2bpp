@@ -12,7 +12,7 @@ in a [Sable](https://github.com/robertTheSable/sable-text-converter) font file.
 
 ### Convert a font to 2BPP format based on a Unicode block
 
-Requires the [ucd.all.grouped.xml](https://www.unicode.org/Public/UCD/latest/ucdxml/) file to be present int he working directory.
+Requires the [ucd.all.grouped.xml](https://www.unicode.org/Public/UCD/latest/ucdxml/) file to be present in the working directory.
 
 ```
 ttf-2-bpp.exe -u ASCII some-font.ttf
@@ -202,6 +202,22 @@ ReservedGlyphs:
     "[Space2]":
         code: 6
         glyph: " "
+```
+
+### SkippedGlyphs
+
+A list of glyphs to not include in the generated font. 
+Example usage:
+```yaml
+SkippedGlyphs:
+  - "@"
+  - "["
+  - "]"
+  - "$"
+  - "#"
+  - "*"
+  - "{"
+  - "}"
 ```
 
 ### Rendering Parameters

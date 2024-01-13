@@ -13,7 +13,7 @@ The program also generates encoding data, which can bo used to define text
 Convert a font to 2BPP format based on a Unicode block:
  ttf-2-bpp.exe -u ASCII some-font.ttf
 
- Requires the ucd.all.grouped.xml file to be present int he working directory.
+ Requires the ucd.all.grouped.xml file to be present in the working directory.
 
  If not present, you may retrieve it from here: 
   https://www.unicode.org/Public/UCD/latest/ucdxml/
@@ -188,6 +188,24 @@ Example usage:
     "[Space2]":
         code: 6
         glyph: " "
+        
+================================ SkippedGlyphs =================================
+
+A list of glyphs to not include in the generated font. 
+
+This list must be in the form of a YAML Sequence of strings.
+
+Example usage:
+
+  SkippedGlyphs:
+    - "@"
+    - "["
+    - "]"
+    - "$"
+    - "#"
+    - "*"
+    - "{"
+    - "}"
 
 ============================= Rendering Parameters =============================
 
