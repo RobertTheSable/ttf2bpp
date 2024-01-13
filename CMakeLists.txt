@@ -37,7 +37,7 @@ file(GLOB_RECURSE TTF_LIB_FILES
 
 add_library(ttf2bpp-lib ${TTF_LIB_FILES})
 
-target_link_libraries(ttf2bpp-lib ${FREETYPE_TARGET} ${expat_LIBRARIES} ${ICU_LIBRARIES} ttf2bpp-unicode)
+target_link_libraries(ttf2bpp-lib ${FREETYPE_TARGET} ${expat_LIBRARIES} Boost::locale ${ICU_LIBRARIES} ttf2bpp-unicode)
 
 target_compile_definitions(ttf2bpp-lib PUBLIC TTF_BPP_DLL=1)
 
@@ -48,6 +48,7 @@ target_include_directories(ttf2bpp-lib PUBLIC
     ${ICU_INCLUDE_DIRS}
     ${YAML_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${Boost_INCLUDE_DIRS}
 )
 
 check_pngpp(ttf2bpp-lib)

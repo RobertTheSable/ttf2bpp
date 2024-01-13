@@ -7,8 +7,8 @@ class Ttf2BppConan(ConanFile):
     license = "MIT License"
     settings = "os", "compiler", "build_type", "arch"
     requires = "yaml-cpp/0.6.3", "cxxopts/2.2.0"
-    options = {"use_system_png": [True, False], "use_system_xml": [True, False], "use_system_icu": [True, False], "use_system_freetype": [True, False], "use_boxer": [True, False]}
-    default_options = {"use_system_png": False, "use_system_xml": False, "use_system_icu": False, "use_system_freetype": False, "use_boxer": False}
+    options = {"use_system_png": [True, False], "use_system_xml": [True, False], "use_system_boost": [True, False], "use_system_icu": [True, False], "use_system_freetype": [True, False], "use_boxer": [True, False]}
+    default_options = {"use_system_png": False, "use_system_xml": False, "use_system_boost": False, "use_system_icu": False, "use_system_freetype": False, "use_boxer": False}
     
     def layout(self):    
         cmake_layout(self)
@@ -19,8 +19,11 @@ class Ttf2BppConan(ConanFile):
             self.requires("libpng/1.6.40")
         if not self.options.use_system_xml:
             self.requires("expat/2.5.0")
+        if not self.options.use_system_boost:
+            print("hi")
+            self.requires("boost/1.81.0")
         if not self.options.use_system_icu:
-            self.requires("icu/72.1")
+            self.requires("icu/73.2")
         if not self.options.use_system_freetype:
             self.requires("freetype/2.13.2")
         if self.options.use_boxer:
