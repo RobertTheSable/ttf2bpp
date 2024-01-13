@@ -7,6 +7,7 @@ else()
 endif()
 
 find_package(ICU 66.1 REQUIRED COMPONENTS in uc dt)
+find_package(Boost 1.81.0 REQUIRED COMPONENTS locale)
 
 find_library(YAML yaml-cpp)
 if(NOT YAML)
@@ -14,7 +15,6 @@ if(NOT YAML)
     set(YAML ${yaml-cpp_LIBRARIES})
     set(YAML_INCLUDE_DIR ${yaml-cpp_INCLUDE_DIRS})
 endif()
-
 
 function(find_cxxopts_includes Target)
     find_package(cxxopts)
