@@ -6,8 +6,6 @@ else()
     set(FREETYPE_TARGET freetype)
 endif()
 
-find_package(Boost 1.71.0 REQUIRED COMPONENTS locale)
-message(STATUS ${Boost_INCLUDE_DIRS})
 find_package(ICU 66.1 REQUIRED COMPONENTS in uc dt)
 
 find_library(YAML yaml-cpp)

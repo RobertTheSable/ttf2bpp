@@ -75,6 +75,7 @@ namespace ttf2bpp {
 
 std::optional<unsigned long> fromUtf8(const std::string& utf8);
 std::string toUtf8(unsigned long utf32);
+void setupDataDir(const std::string& path);
 
 } // namespace ttf2bpp
 

@@ -25,16 +25,19 @@ file(GLOB_RECURSE TTF_LIB_FILES
     ${TTF2BPP_CONFIG_PATH}/configuration.cpp
     ${TTF2BPP_CONFIG_PATH}/convert.cpp
     ${TTF2BPP_CONFIG_PATH}/config_impl.h
+    ${TTF2BPP_CONFIG_PATH}/utf_conv.h
     ${TTF2BPP_INCLUDE_PATH}/glyphs.h
     ${TTF2BPP_INCLUDE_PATH}/renderer.h
     ${TTF2BPP_INCLUDE_PATH}/configuration.h
     ${TTF2BPP_INCLUDE_PATH}/ttf2bpp.h
     ${TTF2BPP_INCLUDE_PATH}/ttf2bpp_exports.h
+    ${TTF2BPP_CONFIG_PATH}/iterator/iterator.cpp
+    ${TTF2BPP_CONFIG_PATH}/iterator/iterator.h
 )
 
 add_library(ttf2bpp-lib ${TTF_LIB_FILES})
 
-target_link_libraries(ttf2bpp-lib ${FREETYPE_TARGET} ${expat_LIBRARIES} Boost::locale ${ICU_LIBRARIES} ttf2bpp-unicode)
+target_link_libraries(ttf2bpp-lib ${FREETYPE_TARGET} ${expat_LIBRARIES} ${ICU_LIBRARIES} ttf2bpp-unicode)
 
 target_compile_definitions(ttf2bpp-lib PUBLIC TTF_BPP_DLL=1)
 
@@ -42,9 +45,9 @@ target_include_directories(ttf2bpp-lib PUBLIC
     ${expat_INCLUDE_DIRS}
     ${FREETYPE_INCLUDE_DIRS}
     ${TTF2BPP_INCLUDE_PATH}
-    ${Boost_INCLUDE_DIRS}
     ${ICU_INCLUDE_DIRS}
     ${YAML_INCLUDE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 check_pngpp(ttf2bpp-lib)
@@ -54,6 +57,13 @@ add_executable(ttf-2-bpp
     "${CMAKE_CURRENT_SOURCE_DIR}/interface/noitifer/notifier.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/interface/noitifer/notifier.cpp"
 )
+
+if (ICU_DATA_FILE)
+    message(STATUS "Copying ${ICU_DATA_FILE} to the build folder.")
+    get_filename_component(ICU_DATA_FILENAME ${ICU_DATA_FILE} NAME)
+    configure_file(${ICU_DATA_FILE} ${ICU_DATA_FILENAME} COPYONLY)
+    target_compile_definitions(ttf2bpp-lib PUBLIC TTF_SET_ICU_DATA_DIR)
+endif()
 
 
 find_cxxopts_includes(ttf-2-bpp)

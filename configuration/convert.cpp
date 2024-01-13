@@ -70,6 +70,7 @@ namespace YAML {
 
     constexpr const char* Palette = "Palette";
     constexpr const char* Reserved = "ReservedGlyphs";
+    constexpr const char* Skipped = "SkippedGlyphs";
     constexpr const char* Baseline = "Baseline";
     constexpr const char* AlphaThresh = "AlphaThreshold";
     constexpr const char* PT_Size = "BorderPointSize";
@@ -101,6 +102,11 @@ namespace YAML {
                     rhs->maxCode = reservedGlyph.index;
                 }
                 rhs->reservedGlyphs.insert(reservedGlyph);
+            }
+        }
+        if (auto sGlyphNode = node[Skipped]; isNonDefault(sGlyphNode) && sGlyphNode.IsSequence()) {
+            for (auto skippedEntry: sGlyphNode) {
+                rhs->skippedGlyphs.insert(skippedEntry.as<std::string>());
             }
         }
         if (auto colorNode = node[Palette]; isNonDefault(colorNode)) {
@@ -237,6 +243,13 @@ namespace YAML {
                 reservedGlyphNode[ttf2bpp::toUtf8(reservedGlyph.code)] = subNode;
             }
             n[Reserved] = reservedGlyphNode;
+        }
+        if (!rhs->skippedGlyphs.empty()) {
+            Node skippedGlyphNodes;
+            for(auto skippedGlyph: rhs->skippedGlyphs) {
+                skippedGlyphNodes.push_back(skippedGlyph);
+            }
+            n[Skipped] = skippedGlyphNodes;
         }
 
         n[Palette] = rhs->ordering;
