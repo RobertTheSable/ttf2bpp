@@ -1,14 +1,15 @@
 #include "ttf2bpp/glyphs.h"
 #include "config_impl.h"
-#include "iterator/iterator.h"
 #include "utf_conv.h"
 
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <iostream>
 
 #include <boost/locale.hpp>
 #include <boost/locale/localization_backend.hpp>
+#include <utf8.h>
 #ifdef TTF_SET_ICU_DATA_DIR
 #include <unicode/putil.h>
 #endif
@@ -20,15 +21,27 @@ namespace ttf2bpp {
         u_setDataDirectory(path.c_str());
 #endif
     }
+
     std::optional<unsigned long> fromUtf8(const std::string& utf8)
     {
-        auto locale = boost::locale::generator().generate("en_US.utf-8");
-        auto normalized = boost::locale::normalize(
-            utf8,
-            boost::locale::norm_nfc,
-            locale
-        );
-        auto utf32Str = boost::locale::conv::utf_to_utf<char32_t>(normalized);
+        std::string normalized{""};
+        try {
+            auto locale = boost::locale::generator().generate("en_US.utf-8");
+            normalized = boost::locale::normalize(
+                utf8,
+                boost::locale::norm_nfc,
+                locale
+            );
+        } catch (std::exception &e) {
+            std::cerr << e.what() << '\n';
+            return std::nullopt;
+        }
+
+        if (!utf8::is_valid(normalized)) {
+            return std::nullopt;
+        }
+        auto utf32Str = utf8::utf8to32(normalized);
+
         if (utf32Str.length() != 1) {
             return std::nullopt;
         }
@@ -37,7 +50,7 @@ namespace ttf2bpp {
 
     std::string toUtf8(unsigned long utf32)
     {
-        return boost::locale::conv::utf_to_utf<char>(std::basic_string<char32_t>{(char32_t)utf32});
+        return utf8::utf32to8(std::u32string{(char32_t)utf32});
     }
     std::vector<unsigned long> readGlyphsFromPaintext(const std::string& filepath)
     {
@@ -51,19 +64,17 @@ namespace ttf2bpp {
         std::vector<unsigned long> result;
 
         std::string line = "";
-        namespace ba=boost::locale::boundary;
-        auto locale = boost::locale::generator().generate("en_US.utf-8");
+
         while (std::getline(inFile, line)) {
-            ba::segment_index<std::string::const_iterator> map(ba::character, line.begin(), line.end(), locale);
-            for (auto gl: map) {
-                // TODO: See if there's non case-by-case way to handle formatting glyphs.
-                if (auto str = gl.str(); (str == "\t" ||  str == "\n" || str== "\r" || str == "\u00A0")) {
+            for (auto it = line.begin(); it != line.end() ; utf8::next(it, line.end())) {
+                auto next = it;
+                auto cp = utf8::next(next, line.end());
+
+                if (auto str = std::string(it, next);
+                        str == "\t" ||  str == "\n" || str== "\r" || str == "\u00A0") {
                     continue;
-                } else if (auto converted = fromUtf8(str); !converted) {
-                    throw std::runtime_error(std::string{"Couldn't convert glyph \""} +  gl.str() + "\"");
-                } else {
-                    result.push_back(*converted);
                 }
+                result.push_back((unsigned long)cp);
             }
         }
 

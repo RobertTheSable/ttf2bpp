@@ -106,7 +106,12 @@ namespace YAML {
         }
         if (auto sGlyphNode = node[Skipped]; isNonDefault(sGlyphNode) && sGlyphNode.IsSequence()) {
             for (auto skippedEntry: sGlyphNode) {
-                rhs->skippedGlyphs.insert(skippedEntry.as<std::string>());
+                auto str = skippedEntry.as<std::string>();
+                if (auto val = ttf2bpp::fromUtf8(str); (bool)val) {
+                    rhs->skippedGlyphs.insert(str);
+                } else {
+                    throw YAML::Exception(node.Mark(), "Glyphs must correspond to a single UTF32 code point.");
+                }
             }
         }
         if (auto colorNode = node[Palette]; isNonDefault(colorNode)) {

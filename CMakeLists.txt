@@ -31,13 +31,11 @@ file(GLOB_RECURSE TTF_LIB_FILES
     ${TTF2BPP_INCLUDE_PATH}/configuration.h
     ${TTF2BPP_INCLUDE_PATH}/ttf2bpp.h
     ${TTF2BPP_INCLUDE_PATH}/ttf2bpp_exports.h
-    ${TTF2BPP_CONFIG_PATH}/iterator/iterator.cpp
-    ${TTF2BPP_CONFIG_PATH}/iterator/iterator.h
 )
 
 add_library(ttf2bpp-lib ${TTF_LIB_FILES})
 
-target_link_libraries(ttf2bpp-lib ${FREETYPE_TARGET} ${expat_LIBRARIES} Boost::locale ${ICU_LIBRARIES} ttf2bpp-unicode)
+target_link_libraries(ttf2bpp-lib ${FREETYPE_TARGET} ${expat_LIBRARIES} utf8::cpp Boost::locale ttf2bpp-unicode)
 
 target_compile_definitions(ttf2bpp-lib PUBLIC TTF_BPP_DLL=1)
 
@@ -45,10 +43,10 @@ target_include_directories(ttf2bpp-lib PUBLIC
     ${expat_INCLUDE_DIRS}
     ${FREETYPE_INCLUDE_DIRS}
     ${TTF2BPP_INCLUDE_PATH}
-    ${ICU_INCLUDE_DIRS}
     ${YAML_INCLUDE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${Boost_INCLUDE_DIRS}
+    ${utf8cpp_INCLUDE_DIRS}
 )
 
 check_pngpp(ttf2bpp-lib)

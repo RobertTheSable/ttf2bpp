@@ -250,7 +250,8 @@ Width to use to constrain rendering. Does not have to match the GlyphWidth.
 
 * Freetype
 * Boost Locale
-* ICU
+* [utfcpp](https://github.com/nemtrif/utfcpp)
+* ICU (Windows/Mac only)
 * Expat
 * png++/libPNG
 * [yaml-cpp](https://github.com/jbeder/yaml-cpp) 0.6.3

@@ -6,8 +6,12 @@ else()
     set(FREETYPE_TARGET freetype)
 endif()
 
-find_package(ICU 66.1 REQUIRED COMPONENTS in uc dt)
+if(NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+    find_package(ICU 66.1 REQUIRED COMPONENTS in uc dt)
+endif()
 find_package(Boost 1.81.0 REQUIRED COMPONENTS locale)
+
+find_package(utf8cpp REQUIRED)
 
 find_library(YAML yaml-cpp)
 if(NOT YAML)
