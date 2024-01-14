@@ -5,6 +5,7 @@
 #include <iomanip>
 
 #include <yaml-cpp/yaml.h>
+
 namespace ttf2bpp {
 
 TTF_BPP_EXPORT bool operator ==(const Reserved& lhs, const Reserved& rhs)
